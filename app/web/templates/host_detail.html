@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %} · Host {{ host.name }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>{{ host.name }}</h1>
+    <p class="subtle">{{ host.address }}:{{ host.ssh_port }} as {{ host.ssh_user }}</p>
+    {% if topology_context.parent %}
+      <p class="subtle">
+        Hosted on
+        <a href="/web/hosts/{{ topology_context.parent.host_id }}">{{ topology_context.parent.name }}</a>
+        {% if topology_context.parent.platform %} · {{ topology_context.parent.platform }}{% endif %}
+        {% if topology_context.parent.guest_type %} · {{ topology_context.parent.guest_type|upper }}{% endif %}
+        {% if topology_context.parent.guest_id %} · guest {{ topology_context.parent.guest_id }}{% endif %}
+      </p>
+    {% endif %}
+  </div>
+  <div class="button-row">
+    <form method="post" action="/api/investigations">
+      <input type="hidden" name="target_type" value="existing_host">
+      <input type="hidden" name="existing_host_id" value="{{ host.id }}">
+      <button class="button button-secondary" type="submit">Start Investigation</button>
+    </form>
+    <form method="post" action="/api/hosts/{{ host.id }}/test">
+      <button class="button button-secondary" type="submit">Test Connection</button>
+    </form>
+    <form method="post" action="/api/hosts/{{ host.id }}/facts/refresh">
+      <button class="button button-secondary" type="submit">Refresh Host Facts</button>
+    </form>
+    <form method="post" action="/api/hosts/{{ host.id }}/topology/refresh">
+      <button class="button button-secondary" type="submit">Refresh Topology</button>
+    </form>
+    <form method="post" action="/api/hosts/{{ host.id }}/scan/full">
+      <button class="button" type="submit">Run Full Scan</button>
+    </form>
+    <form method="post" action="/api/hosts/{{ host.id }}/scan/incremental">
+      <button class="button button-ghost" type="submit">Run Incremental Scan</button>
+    </form>
+    <form
+      method="post"
+      action="/api/hosts/{{ host.id }}/delete"
+      onsubmit="return confirm('Remove host {{ host.name }} and its discovered projects?');"
+    >
+      <input type="hidden" name="return_to" value="/web/hosts">
+      <button class="button button-danger" type="submit">Remove Host</button>
+    </form>
+  </div>
+</section>
+
+<section class="two-column">
+  <article class="card">
+    <div class="card-header">
+      <h2>Host configuration</h2>
+      <span class="pill pill-{{ host.connection_status }}">{{ host.connection_status }}</span>
+    </div>
+    <form method="post" action="/api/hosts/{{ host.id }}/preset/proxmox" class="stack-form">
+      <div class="form-row">
+        <label>
+          <span>Proxmox node name</span>
+          <input type="text" name="node_name" placeholder="pve-node-1">
+        </label>
+        <div class="inline-actions">
+          <button class="button button-ghost" type="submit">Apply Proxmox Roots</button>
+        </div>
+      </div>
+      <small class="subtle">Use this to replace placeholder roots like <code>&lt;your-node&gt;</code> with real Proxmox paths.</small>
+    </form>
+    <div class="section-divider"></div>
+    <form method="post" action="/api/hosts" class="stack-form">
+      <input type="hidden" name="host_id" value="{{ host.id }}">
+      <label>
+        <span>Name</span>
+        <input type="text" name="name" value="{{ host.name }}" required>
+      </label>
+      <label>
+        <span>Address</span>
+        <input type="text" name="address" value="{{ host.address }}" required>
+      </label>
+      <div class="form-row">
+        <label>
+          <span>SSH Port</span>
+          <input type="number" name="ssh_port" value="{{ host.ssh_port }}" min="1" max="65535" required>
+        </label>
+        <label>
+          <span>SSH User</span>
+          <input type="text" name="ssh_user" value="{{ host.ssh_user }}" required>
+        </label>
+      </div>
+      <label>
+        <span>SSH Key Path</span>
+        <input type="text" name="ssh_key_path" value="{{ host.ssh_key_path or default_ssh_key_path }}">
+        <small class="subtle">Use the private key path. AICMS will derive the public key automatically for bootstrapping.</small>
+      </label>
+      <label>
+        <span>Allowlisted Roots</span>
+        <textarea name="roots_text" rows="5" required>{% for root in host.roots %}{{ root.root_path }}
+{% endfor %}</textarea>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" {% if host.enabled %}checked{% endif %}>
+        <span>Enable this host</span>
+      </label>
+      <button class="button" type="submit">Save Changes</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Recent scan history</h2>
+      <a href="/web/scans">All scans</a>
+    </div>
+    {% if recent_scans %}
+      <table class="data-table compact-table">
+        <thead>
+          <tr>
+            <th>Scan</th>
+            <th>Status</th>
+            <th>Started</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for scan in recent_scans %}
+            <tr>
+              <td><a href="/web/scans?scan_id={{ scan.id }}">#{{ scan.id }} {{ scan.scan_type }}</a></td>
+              <td><span class="pill pill-{{ scan.status }}">{{ scan.status }}</span></td>
+              <td>{{ scan.started_at|dt }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No scan history</h3>
+        <p>This host has not been scanned yet.</p>
+      </div>
+    {% endif %}
+  </article>
+</section>
+
+<section class="two-column">
+  <article class="card">
+    <div class="card-header">
+      <h2>Bootstrap remote access</h2>
+      <span>Provision {{ host.ssh_user }}</span>
+    </div>
+    <form method="post" action="/api/hosts/bootstrap" class="stack-form">
+      <input type="hidden" name="host_id" value="{{ host.id }}">
+      <input type="hidden" name="name" value="{{ host.name }}">
+      <input type="hidden" name="address" value="{{ host.address }}">
+      <input type="hidden" name="ssh_port" value="{{ host.ssh_port }}">
+      <input type="hidden" name="ssh_user" value="{{ host.ssh_user }}">
+      <input type="hidden" name="ssh_key_path" value="{{ host.ssh_key_path or default_ssh_key_path }}">
+      <input type="hidden" name="enabled" value="{% if host.enabled %}on{% endif %}">
+      <input type="hidden" name="roots_text" value="{% for root in host.roots %}{{ root.root_path }}{% if not loop.last %}&#10;{% endif %}{% endfor %}">
+      <label>
+        <span>Bootstrap SSH User</span>
+        <input type="text" name="bootstrap_user" placeholder="root" value="root" required>
+      </label>
+      <label>
+        <span>Bootstrap Password</span>
+        <input type="password" name="bootstrap_password" placeholder="Password for the existing account">
+      </label>
+      <label>
+        <span>Sudo Password</span>
+        <input type="password" name="sudo_password" placeholder="Optional if root or same as the bootstrap password">
+      </label>
+      <button class="button button-secondary" type="submit">Bootstrap {{ host.ssh_user }} Access</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Discovered projects</h2>
+      <span>{{ host.projects|length }}</span>
+    </div>
+    {% if host.projects %}
+      <ul class="timeline">
+        {% for project in host.projects %}
+          <li>
+            <a href="/web/projects/{{ project.id }}">{{ project.name_guess or project.path }}</a>
+            <small>{{ project.path }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No projects yet</h3>
+        <p>Run a scan after verifying connectivity.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Topology</h2>
+      <span>{{ topology_context.guest_counts.enrolled + topology_context.guest_counts.discovered if topology_context.guest_counts else 0 }} guests</span>
+    </div>
+    {% if topology_context.parent %}
+      <div class="notes-block">
+        <h3>Hosted on</h3>
+        <p>
+          <a href="/web/hosts/{{ topology_context.parent.host_id }}">{{ topology_context.parent.name }}</a>
+          {% if topology_context.parent.platform %} · {{ topology_context.parent.platform }}{% endif %}
+          {% if topology_context.parent.guest_type %} · {{ topology_context.parent.guest_type|upper }}{% endif %}
+          {% if topology_context.parent.guest_id %} · guest {{ topology_context.parent.guest_id }}{% endif %}
+        </p>
+      </div>
+    {% endif %}
+    {% if topology_context.enrolled_guests or topology_context.discovered_guests %}
+      {% if topology_context.enrolled_guests %}
+        <h3>Enrolled guests</h3>
+        <table class="data-table compact-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>ID</th>
+              <th>Status</th>
+              <th>Resources</th>
+              <th>Linked host</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for guest in topology_context.enrolled_guests %}
+              <tr>
+                <td>{{ guest.name or (guest.guest_type|upper ~ ' ' ~ guest.guest_id) }}</td>
+                <td>{{ guest.guest_type|upper }}</td>
+                <td>{{ guest.guest_id }}</td>
+                <td>{{ guest.status or "unknown" }}</td>
+                <td>{{ guest.cores or "?" }} cores · {{ guest.ram_mb or "?" }} MB · {{ guest.disk_summary or "disk unknown" }}</td>
+                <td>
+                  {% if guest.linked_host %}
+                    <a href="/web/hosts/{{ guest.linked_host.id }}">{{ guest.linked_host.name }}</a>
+                  {% else %}
+                    linked
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
+      {% if topology_context.discovered_guests %}
+        <h3>Discovered-only guests</h3>
+        <div class="timeline">
+          {% for guest in topology_context.discovered_guests %}
+            <div class="command-card">
+              <div class="card-header">
+                <div>
+                  <strong>{{ guest.name or (guest.guest_type|upper ~ ' ' ~ guest.guest_id) }}</strong>
+                  <small>{{ guest.guest_type|upper }} · guest {{ guest.guest_id }} · {{ guest.status or "unknown" }}</small>
+                </div>
+                <div class="inline-actions">
+                  <a class="button button-small" href="/web/guests/{{ guest.id }}/enroll">Add as host</a>
+                  <a class="button button-small button-secondary" href="/web/guests/{{ guest.id }}/enroll">Bootstrap</a>
+                  <form method="post" action="/api/guests/{{ guest.id }}/unmanaged" onsubmit="return confirm('Mark this discovered guest as unmanaged?');">
+                    <button class="button button-small button-ghost" type="submit">Mark unmanaged</button>
+                  </form>
+                </div>
+              </div>
+              <p class="subtle">{{ guest.cores or "?" }} cores · {{ guest.ram_mb or "?" }} MB RAM · {{ guest.disk_summary or "disk unknown" }}</p>
+              <div class="button-row">
+                <form method="post" action="/api/guests/{{ guest.id }}/link" class="inline-form">
+                  <select name="existing_host_id" required>
+                    <option value="">Link existing host</option>
+                    {% for item in linkable_hosts %}
+                      <option value="{{ item.id }}">{{ item.name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="button button-small button-secondary" type="submit">Link</button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No topology data yet</h3>
+        <p>Refresh topology after scanning a hypervisor host or linking a discovered guest.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Errors and warnings</h2>
+      <span>{{ host_events|length }}</span>
+    </div>
+    {% if host_events %}
+      <ul class="timeline">
+        {% for event in host_events %}
+          <li>
+            <span class="pill pill-{{ event.level }}">{{ event.level }}</span>
+            <strong>{{ event.message }}</strong>
+            <small>{{ event.created_at|dt }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No host events</h3>
+        <p>Host-specific warnings and errors will appear here.</p>
+      </div>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

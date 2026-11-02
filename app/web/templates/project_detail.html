@@ -1,0 +1,814 @@
+{% extends "base.html" %}
+{% block title %} · Project {{ project.name_guess or project.path }}{% endblock %}
+{% block shell_class %}shell-wide{% endblock %}
+{% block page_class %}project-page{% endblock %}
+{% block content %}
+<section class="hero">
+  {% set active_profile = profile_run.status in ['queued', 'running', 'cancelling'] %}
+  {% set identity = identity_result %}
+  {% set machine_kind = identity.machine_kind if identity else (latest_profile.machine_kind if latest_profile else None) %}
+  {% set detected_platform = identity.detected_platform if identity else (latest_profile.detected_platform if latest_profile else None) %}
+  {% set detected_role = identity.detected_role if identity else (latest_profile.detected_role if latest_profile else None) %}
+  {% set identity_confidence = identity.identity_confidence if identity else (latest_profile.confidence if latest_profile else None) %}
+  <div>
+    <h1>{{ project.name_guess or project.path }}</h1>
+    {% if latest_profile or identity %}
+      <div class="tag-row">
+        {% if machine_kind %}<span class="pill pill-info">{{ machine_kind }}</span>{% endif %}
+        {% if detected_platform %}<span class="pill pill-neutral">{{ detected_platform }}</span>{% endif %}
+        {% if detected_role %}<span class="pill pill-neutral">{{ detected_role }}</span>{% endif %}
+        {% if identity_confidence is not none %}<span class="pill pill-{{ 'warning' if identity_confidence < 0.70 else 'success' }}">{{ "%.2f"|format(identity_confidence) }}</span>{% endif %}
+        {% if identity and identity.primary_signature_name %}<span class="pill pill-neutral">{{ identity.primary_signature_name }}</span>{% endif %}
+      </div>
+    {% endif %}
+    {% if project.metadata_json and project.metadata_json.setup_kind == "host-summary" %}
+      <p class="subtle">{{ project.host.address if project.host else project.path }}</p>
+      {% if project.metadata_json.grouped_roots %}
+        <p class="subtle">{{ project.metadata_json.grouped_roots|length }} allowlisted roots included in this host summary.</p>
+      {% endif %}
+    {% else %}
+      <p class="subtle">{{ project.path }}</p>
+    {% endif %}
+  </div>
+  <div class="inline-actions project-hero-actions">
+    <a class="button button-secondary" href="/web/projects/{{ project.id }}/preview">Website Preview</a>
+    {% if project.host %}
+    <form method="post" action="/api/investigations">
+      <input type="hidden" name="target_type" value="existing_host">
+      <input type="hidden" name="existing_host_id" value="{{ project.host.id }}">
+      <button class="button button-secondary" type="submit">Start Investigation</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/api/projects/{{ project.id }}/profile" data-profile-start-form {% if active_profile %}hidden{% endif %}>
+      <button class="button" type="submit">{{ "Refresh profile" if latest_profile else "Generate profile" }}</button>
+    </form>
+    <form method="post" action="/api/projects/{{ project.id }}/profile/stop" data-profile-stop-form {% if not active_profile %}hidden{% endif %}>
+      <button class="button button-danger" type="submit">Stop Profile Refresh</button>
+    </form>
+    <details class="action-menu">
+      <summary class="button button-secondary">Content Actions</summary>
+      <div class="action-menu-panel">
+        <form method="post" action="/api/projects/{{ project.id }}/identity/refresh">
+          <button class="button button-secondary" type="submit">Refresh Identity</button>
+        </form>
+        <form method="post" action="/api/projects/{{ project.id }}/research/refresh">
+          <button class="button button-secondary" type="submit">Run Research</button>
+        </form>
+        <form method="post" action="/api/projects/{{ project.id }}/mapping/refresh">
+          <button class="button button-secondary" type="submit">Rebuild Public Copy</button>
+        </form>
+        <form method="post" action="/api/projects/{{ project.id }}/card-copy/refresh">
+          <button class="button button-secondary" type="submit">Refresh Card Copy</button>
+        </form>
+        <form method="post" action="/api/projects/{{ project.id }}/publish-copy/refresh">
+          <button class="button button-secondary" type="submit">Refresh Publish Copy</button>
+        </form>
+      </div>
+    </details>
+    {% if project.host or enrichment_enabled %}
+    <details class="action-menu">
+      <summary class="button button-secondary">Host Actions</summary>
+      <div class="action-menu-panel">
+        {% if project.host %}
+        <form method="post" action="/api/hosts/{{ project.host.id }}/topology/refresh">
+          <button class="button button-secondary" type="submit">Refresh Topology</button>
+        </form>
+        <form method="post" action="/api/hosts/{{ project.host.id }}/facts/refresh">
+          <button class="button button-secondary" type="submit">Refresh Host Facts</button>
+        </form>
+        {% endif %}
+        {% if enrichment_enabled %}
+        <form method="post" action="/api/projects/{{ project.id }}/profile" {% if active_profile %}hidden{% endif %}>
+          <button class="button button-secondary" type="submit">Enrich Profile</button>
+        </form>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+    <form method="post" action="/api/projects/{{ project.id }}/delete" onsubmit="return confirm('Remove this project from AICMS?');">
+      <input type="hidden" name="return_to" value="/web/projects">
+      <button class="button button-danger" type="submit">Remove Project</button>
+    </form>
+  </div>
+</section>
+
+<section class="card-grid project-fullwidth-stack">
+  <article class="card project-machine-card">
+    <h2>Machine identity</h2>
+    <dl class="detail-list">
+      <div><dt>Host</dt><dd>{{ project.host.name if project.host else "Unknown" }}</dd></div>
+      <div><dt>Type</dt><dd>{{ project.project_type }}</dd></div>
+      {% if project.metadata_json and project.metadata_json.setup_kind == "host-summary" %}
+        <div><dt>Address</dt><dd>{{ project.host.address if project.host else "Unknown" }}</dd></div>
+        <div><dt>Contained setups</dt><dd>{{ project.metadata_json.child_projects|length if project.metadata_json.child_projects else 0 }}</dd></div>
+      {% endif %}
+      {% if topology_context.parent %}
+        <div><dt>Hosted on</dt><dd><a href="/web/hosts/{{ topology_context.parent.host_id }}">{{ topology_context.parent.name }}</a></dd></div>
+        <div><dt>Guest type</dt><dd>{{ topology_context.parent.guest_type|upper if topology_context.parent.guest_type else "Unknown" }}</dd></div>
+        <div><dt>Guest ID</dt><dd>{{ topology_context.parent.guest_id or "Unknown" }}</dd></div>
+        <div><dt>Parent platform</dt><dd>{{ topology_context.parent.platform or "Unknown" }}</dd></div>
+      {% endif %}
+      <div><dt>Git repository</dt><dd>{{ "Yes" if project.is_git_repo else "No" }}</dd></div>
+      <div><dt>Repo branch</dt><dd>{{ project.repo_branch or "N/A" }}</dd></div>
+      <div><dt>Repo remote</dt><dd>{{ project.repo_remote or "N/A" }}</dd></div>
+      <div><dt>Head commit</dt><dd><code>{{ project.head_commit or "N/A" }}</code></dd></div>
+      <div><dt>Fingerprint</dt><dd><code>{{ project.fingerprint }}</code></dd></div>
+      <div><dt>First seen</dt><dd>{{ project.first_seen_at|dt }}</dd></div>
+      <div><dt>Last seen</dt><dd>{{ project.last_seen_at|dt }}</dd></div>
+      <div><dt>Last modified</dt><dd>{{ project.last_modified_at|dt }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="card project-identity-card">
+    <div class="card-header">
+      <h2>Identity</h2>
+      <span>{% if identity %}{{ identity.primary_signature_name or "resolved" }}{% else %}not resolved{% endif %}</span>
+    </div>
+    {% if identity %}
+      <dl class="detail-list" data-identity-summary>
+        <div><dt>Primary match</dt><dd data-identity-primary>{{ identity.primary_signature_name or "Fallback unknown profile" }}</dd></div>
+        <div><dt>Confidence</dt><dd data-identity-confidence>{{ "%.2f"|format(identity.identity_confidence) }}</dd></div>
+        <div><dt>Detected role</dt><dd data-identity-role>{{ identity.detected_role }}</dd></div>
+        <div><dt>Detected platform</dt><dd data-identity-platform>{{ identity.detected_platform }}</dd></div>
+        <div><dt>Stack tags</dt><dd data-identity-tags>{% if identity.stack_tags_json %}{{ identity.stack_tags_json|join(", ") }}{% else %}None{% endif %}</dd></div>
+      </dl>
+      <div class="notes-block">
+        <h4>Why this was matched</h4>
+        <ul class="timeline compact-timeline" data-identity-evidence>
+          {% for item in identity.identity_evidence_json or [] %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="notes-block">
+        <h4>Local observed facts</h4>
+        <ul class="timeline compact-timeline" data-identity-local-facts>
+          {% for item in identity.local_facts_evidence_json or [] %}
+            <li>{{ item }}</li>
+          {% endfor %}
+          {% if not identity.local_facts_evidence_json %}
+            <li>No additional local fact summary was stored.</li>
+          {% endif %}
+        </ul>
+      </div>
+      <div class="notes-block">
+        <h4>Alternate matches</h4>
+        <ul class="timeline compact-timeline" data-identity-alternates>
+          {% for item in identity.alternate_matches_json or [] %}
+            <li>{{ item.display_name }} · {{ "%.2f"|format(item.confidence or 0) }} · {{ item.detected_role }}</li>
+          {% endfor %}
+          {% if not identity.alternate_matches_json %}
+            <li>No alternate signature matches were close enough to matter.</li>
+          {% endif %}
+        </ul>
+      </div>
+      {% if identity.ambiguity_notes_json %}
+      <div class="notes-block">
+        <h4>Ambiguity notes</h4>
+        <ul class="timeline compact-timeline" data-identity-ambiguity>
+          {% for item in identity.ambiguity_notes_json %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No identity result yet</h3>
+        <p>Refresh identity to resolve deterministic signatures before generating the machine profile narrative.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="card project-context-card">
+    {% set operator_context = project.metadata_json.operator_context if project.metadata_json and project.metadata_json.operator_context else {} %}
+    {% set interpretation_preferences = project.metadata_json.interpretation_preferences if project.metadata_json and project.metadata_json.interpretation_preferences else {} %}
+    <div class="card-header">
+      <h2>Project context</h2>
+      <span>Owner-supplied</span>
+    </div>
+    <p class="subtle">Add project-specific notes or guidance for future scans and machine profile formatting.</p>
+    <form method="post" action="/api/projects/{{ project.id }}/context" class="stack-form">
+      <label for="added_info">Added info</label>
+      <textarea id="added_info" name="added_info" rows="6" placeholder="Facts you want AICMS to remember about this setup.">{{ operator_context.added_info or "" }}</textarea>
+      <label for="extra_instructions">Extra instructions</label>
+      <textarea id="extra_instructions" name="extra_instructions" rows="6" placeholder="How you want this project described or what the model should focus on.">{{ operator_context.extra_instructions or "" }}</textarea>
+      <label class="checkbox">
+        <input type="checkbox" name="use_project_token_limit" {% if interpretation_preferences.max_output_tokens %}checked{% endif %}>
+        <span>Use a project-specific final summary token limit</span>
+      </label>
+      <label for="project_max_tokens">
+        <span>Project final-summary token limit</span>
+        <input
+          id="project_max_tokens"
+          type="range"
+          min="64"
+          max="8192"
+          step="64"
+          name="project_max_tokens"
+          value="{{ interpretation_preferences.max_output_tokens or 2048 }}"
+          data-range-output="project-max-tokens-value"
+        >
+        <small class="subtle">
+          <strong><span id="project-max-tokens-value">{{ interpretation_preferences.max_output_tokens or 2048 }}</span></strong>
+          tokens when the project override is enabled. Leave the checkbox off to use the global LM Studio token mode.
+        </small>
+      </label>
+      <div class="inline-actions">
+        <button class="button" type="submit">Save project context</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="card project-clarifications-card">
+    {% set guidance = project.clarification_guidance %}
+    <div class="card-header">
+      <h2>AI Clarification Workspace</h2>
+      <span>{{ clarification_counts.open }} open · {{ clarification_counts.answered }} answered · {{ clarification_counts.resolved }} resolved · {{ clarification_counts.ignored }} ignored</span>
+    </div>
+    <p class="subtle">Internal editorial workspace only. Answers here improve identity resolution, project mapping, public copy, and later CMS-ready content. This thread does not appear in public website previews unless transformed into approved copy.</p>
+    <div class="inline-actions">
+      <form method="post" action="/api/projects/{{ project.id }}/questions/generate">
+        <button class="button button-secondary" type="submit">Refresh AI Questions</button>
+      </form>
+      <form method="post" action="/api/projects/{{ project.id }}/questions/regenerate">
+        <input type="hidden" name="scope" value="title">
+        <button class="button button-secondary" type="submit">Regenerate title from answers</button>
+      </form>
+      <form method="post" action="/api/projects/{{ project.id }}/questions/regenerate">
+        <input type="hidden" name="scope" value="summary">
+        <button class="button button-secondary" type="submit">Regenerate summary from answers</button>
+      </form>
+      <form method="post" action="/api/projects/{{ project.id }}/questions/regenerate">
+        <input type="hidden" name="scope" value="mapping">
+        <button class="button button-secondary" type="submit">Regenerate project mapping from answers</button>
+      </form>
+      <form method="post" action="/api/projects/{{ project.id }}/questions/regenerate">
+        <input type="hidden" name="scope" value="public_copy">
+        <button class="button button-secondary" type="submit">Rebuild public copy using answers</button>
+      </form>
+    </div>
+
+    {% if guidance %}
+      <div class="notes-block">
+        <h4>Applied guidance memory</h4>
+        <ul class="timeline compact-timeline">
+          {% if guidance.preferred_public_title %}<li>Preferred public title: {{ guidance.preferred_public_title }}</li>{% endif %}
+          {% if guidance.preferred_role_wording %}<li>Preferred role wording: {{ guidance.preferred_role_wording }}</li>{% endif %}
+          {% if guidance.preferred_summary_framing %}<li>Preferred summary framing: {{ guidance.preferred_summary_framing }}</li>{% endif %}
+          {% if guidance.standalone_preference %}<li>Standalone preference: {{ guidance.standalone_preference }}</li>{% endif %}
+          {% if guidance.preferred_project_group %}<li>Preferred project group: {{ guidance.preferred_project_group }}</li>{% endif %}
+          {% if guidance.publishable_project is not none %}<li>Publishable project: {{ "Yes" if guidance.publishable_project else "No" }}</li>{% endif %}
+          {% if guidance.internal_only is not none %}<li>Internal only: {{ "Yes" if guidance.internal_only else "No" }}</li>{% endif %}
+          {% for item in guidance.guidance_notes_json or [] %}
+            <li>{{ item }}</li>
+          {% endfor %}
+          {% if guidance.last_applied_at %}<li>Last applied: {{ guidance.last_applied_at|dt }}</li>{% endif %}
+        </ul>
+      </div>
+    {% endif %}
+
+    {% for status_key, status_label in [('open', 'Open questions'), ('answered', 'Answered questions'), ('resolved', 'Resolved questions'), ('ignored', 'Ignored questions')] %}
+      {% set threads = project.clarification_threads | selectattr('status', 'equalto', status_key) | list %}
+      <div class="notes-block">
+        <h4>{{ status_label }}</h4>
+        {% if threads %}
+          <div class="clarification-thread-list">
+            {% for thread in threads %}
+              <article class="clarification-thread">
+                <div class="card-header">
+                  <div>
+                    <strong>{{ thread.question_text }}</strong>
+                    <div class="tag-row">
+                      <span class="pill pill-info">{{ thread.status }}</span>
+                      <span class="pill pill-neutral">{{ thread.question_type }}</span>
+                      <span class="pill pill-neutral">{{ thread.created_by }}</span>
+                    </div>
+                  </div>
+                  {% if thread.last_used_in_generation_at %}
+                    <small class="subtle">used in generation {{ thread.last_used_in_generation_at|dt }}</small>
+                  {% endif %}
+                </div>
+                {% if thread.ai_rationale %}
+                  <p class="subtle"><strong>Why I asked:</strong> {{ thread.ai_rationale }}</p>
+                {% endif %}
+                {% if thread.messages %}
+                  <ul class="timeline compact-timeline clarification-message-list">
+                    {% for message in thread.messages %}
+                      <li>
+                        <strong>{{ "AI" if message.author_role == "ai" else "You" }}</strong>
+                        <small>{{ message.created_at|dt }}</small>
+                        <div>{{ message.message_text }}</div>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+                {% if thread.status not in ['ignored', 'resolved'] %}
+                  <form method="post" action="/api/projects/{{ project.id }}/questions/{{ thread.id }}/answer" class="stack-form clarification-answer-form">
+                    <label for="thread-answer-{{ thread.id }}">Answer</label>
+                    <textarea id="thread-answer-{{ thread.id }}" name="answer_text" rows="4" placeholder="Answer this question to improve identity, mapping, and public copy.">{{ thread.my_answer or "" }}</textarea>
+                    <div class="inline-actions">
+                      <button class="button" type="submit">Answer</button>
+                    </div>
+                  </form>
+                {% elif thread.my_answer %}
+                  <div class="notes-block compact">
+                    <h4>Saved answer</h4>
+                    <p>{{ thread.my_answer }}</p>
+                  </div>
+                {% endif %}
+                <div class="inline-actions">
+                  {% if thread.status != 'resolved' %}
+                    <form method="post" action="/api/projects/{{ project.id }}/questions/{{ thread.id }}/status">
+                      <input type="hidden" name="status" value="resolved">
+                      <button class="button button-secondary" type="submit">Mark resolved</button>
+                    </form>
+                  {% endif %}
+                  {% if thread.status != 'ignored' %}
+                    <form method="post" action="/api/projects/{{ project.id }}/questions/{{ thread.id }}/status">
+                      <input type="hidden" name="status" value="ignored">
+                      <button class="button button-secondary" type="submit">Ignore</button>
+                    </form>
+                  {% endif %}
+                  {% if thread.status != 'open' %}
+                    <form method="post" action="/api/projects/{{ project.id }}/questions/{{ thread.id }}/status">
+                      <input type="hidden" name="status" value="open">
+                      <button class="button button-secondary" type="submit">Re-open</button>
+                    </form>
+                  {% endif %}
+                  <form method="post" action="/api/projects/{{ project.id }}/questions/{{ thread.id }}/follow-up">
+                    <button class="button button-secondary" type="submit">Ask follow-up</button>
+                  </form>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state compact">
+            <h3>No {{ status_key }} clarification threads</h3>
+            <p>{% if status_key == 'open' %}Run Refresh AI Questions when you want AICMS to surface targeted editorial questions.{% else %}No {{ status_key }} threads yet.{% endif %}</p>
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </article>
+
+  <article class="card project-markers-card">
+    <h2>Markers</h2>
+    {% if project.markers %}
+      <ul class="timeline">
+        {% for marker in project.markers %}
+          <li>
+            <strong>{{ marker.marker_name }}</strong>
+            <small>{{ marker.marker_path }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No markers stored</h3>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="card project-topology-card">
+    <div class="card-header">
+      <h2>Topology</h2>
+      <span>
+        {% if topology_context.parent %}
+          guest
+        {% elif topology_context.guest_counts %}
+          {{ topology_context.guest_counts.enrolled + topology_context.guest_counts.discovered }} guests
+        {% else %}
+          no links
+        {% endif %}
+      </span>
+    </div>
+    {% if topology_context.parent %}
+      <ul class="timeline compact-timeline">
+        <li>Hosted on <a href="/web/hosts/{{ topology_context.parent.host_id }}">{{ topology_context.parent.name }}</a></li>
+        {% if topology_context.parent.platform %}<li>Parent platform: {{ topology_context.parent.platform }}</li>{% endif %}
+        {% if topology_context.parent.guest_type %}<li>Guest type: {{ topology_context.parent.guest_type|upper }}</li>{% endif %}
+        {% if topology_context.parent.guest_id %}<li>Guest ID: {{ topology_context.parent.guest_id }}</li>{% endif %}
+      </ul>
+    {% elif topology_context.enrolled_guests or topology_context.discovered_guests %}
+      <ul class="timeline compact-timeline">
+        <li>Enrolled guests: {{ topology_context.guest_counts.enrolled }}</li>
+        <li>Discovered-only guests: {{ topology_context.guest_counts.discovered }}</li>
+        {% if topology_context.guest_counts.unmanaged %}<li>Unmanaged guests: {{ topology_context.guest_counts.unmanaged }}</li>{% endif %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No topology data yet</h3>
+        <p>Refresh host facts or topology on the host page after scanning.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="card project-mapping-card">
+    <div class="card-header">
+      <h2>Project Mapping Preview</h2>
+      <span>{% if mapping_preview %}{{ mapping_preview.recommended_status }}{% else %}not built{% endif %}</span>
+    </div>
+    {% if mapping_preview %}
+      <dl class="detail-list" data-mapping-preview>
+        <div><dt>Card title</dt><dd data-mapping-card-title>{{ mapping_preview.card_title_candidate or mapping_preview.project_title_candidate }}</dd></div>
+        <div><dt>Card summary</dt><dd data-mapping-card-summary>{{ mapping_preview.card_summary_candidate or mapping_preview.project_summary_candidate }}</dd></div>
+        <div><dt>Card tech tags</dt><dd data-mapping-card-tags>{% if mapping_preview.card_tech_tags_candidate_json %}{{ mapping_preview.card_tech_tags_candidate_json|join(", ") }}{% elif mapping_preview.tech_tags_candidate_json %}{{ mapping_preview.tech_tags_candidate_json|join(", ") }}{% else %}None{% endif %}</dd></div>
+        <div><dt>Publish title</dt><dd data-mapping-publish-title>{{ mapping_preview.publish_title_candidate or mapping_preview.project_title_candidate }}</dd></div>
+        <div><dt>Publish-ready description</dt><dd data-mapping-publish-summary>{{ mapping_preview.publish_long_description_candidate or mapping_preview.publish_summary_candidate or mapping_preview.project_summary_candidate }}</dd></div>
+        <div><dt>Publish tech tags</dt><dd data-mapping-tags>{% if mapping_preview.tech_tags_candidate_json %}{{ mapping_preview.tech_tags_candidate_json|join(", ") }}{% else %}None{% endif %}</dd></div>
+        <div><dt>Publishable kind</dt><dd data-mapping-kind>{{ mapping_preview.publishable_kind or "Unknown" }}</dd></div>
+        <div><dt>Status</dt><dd data-mapping-status>{{ mapping_preview.recommended_status }}</dd></div>
+      </dl>
+      <div class="notes-block">
+        <h4>Structured publish sections</h4>
+        <pre class="json-block" data-mapping-publish-long>{% if mapping_preview.publish_sections_json %}{{ mapping_preview.publish_sections_json|join('\n') }}{% else %}Not generated yet.{% endif %}</pre>
+      </div>
+      <div class="notes-block">
+        <h4>Publishability</h4>
+        <ul class="timeline compact-timeline" data-mapping-reasons>
+          <li>{{ mapping_preview.publishability_reason }}</li>
+          {% if mapping_preview.internal_only_reason %}<li>{{ mapping_preview.internal_only_reason }}</li>{% endif %}
+        </ul>
+      </div>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No mapping preview yet</h3>
+        <p>Rebuild the project mapping preview after identity has been resolved.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="card project-overrides-card">
+    <div class="card-header">
+      <h2>Manual overrides</h2>
+      <span>publishability and CMS readiness</span>
+    </div>
+    <form method="post" action="/api/projects/{{ project.id }}/overrides" class="stack-form">
+      <label for="project_label_override">Project label override</label>
+      <input id="project_label_override" name="project_label_override" value="{{ host_override.project_label_override if host_override else '' }}">
+      <label for="public_title_override">Public title override</label>
+      <input id="public_title_override" name="public_title_override" value="{{ host_override.public_title_override if host_override else '' }}">
+      <label for="public_summary_hint">Public summary hint</label>
+      <textarea id="public_summary_hint" name="public_summary_hint" rows="4">{{ host_override.public_summary_hint if host_override else '' }}</textarea>
+      <label for="publishable_project">Publishable project</label>
+      <select id="publishable_project" name="publishable_project">
+        <option value="" {% if not host_override or host_override.publishable_project is none %}selected{% endif %}>Use signature default</option>
+        <option value="true" {% if host_override and host_override.publishable_project is true %}selected{% endif %}>Yes</option>
+      </select>
+      <label for="internal_only">Internal only</label>
+      <select id="internal_only" name="internal_only">
+        <option value="" {% if not host_override or host_override.internal_only is none %}selected{% endif %}>Use signature default</option>
+        <option value="true" {% if host_override and host_override.internal_only is true %}selected{% endif %}>Yes</option>
+      </select>
+      <label for="related_host_ids">Related hosts</label>
+      <select id="related_host_ids" name="related_host_ids" multiple size="4">
+        {% for item in all_hosts %}
+          {% if not project.host or item.id != project.host.id %}
+            <option value="{{ item.id }}" {% if host_override and host_override.related_host_ids_json and item.id in host_override.related_host_ids_json %}selected{% endif %}>{{ item.name }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+      <label for="public_tech_tags_override">Public tech tags override</label>
+      <textarea id="public_tech_tags_override" name="public_tech_tags_override" rows="3" placeholder="One tag per line">{{ (host_override.public_tech_tags_override_json|join('\n')) if host_override and host_override.public_tech_tags_override_json else '' }}</textarea>
+      <label for="project_group">Project group / family</label>
+      <input id="project_group" name="project_group" value="{{ host_override.project_group if host_override else '' }}">
+      <label for="notes_for_cms_export">Notes for later CMS export</label>
+      <textarea id="notes_for_cms_export" name="notes_for_cms_export" rows="4">{{ host_override.notes_for_cms_export if host_override else '' }}</textarea>
+      <div class="inline-actions">
+        <button class="button" type="submit">Save publishability controls</button>
+      </div>
+    </form>
+  </article>
+</section>
+
+<section class="two-column project-fullwidth-stack">
+  <article class="card">
+    <div class="card-header">
+      <h2>Shallow tree</h2>
+      <span>{{ project.shallow_tree_json|length if project.shallow_tree_json else 0 }} entries</span>
+    </div>
+    {% if project.shallow_tree_json %}
+      <ul class="tree-list">
+        {% for entry in project.shallow_tree_json %}
+          <li><span class="pill pill-neutral">{{ entry.type }}</span> {{ entry.path }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No tree stored</h3>
+        <p>Enable shallow tree collection in Scan Settings.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article
+    class="card"
+    data-project-profile
+    data-project-id="{{ project.id }}"
+    data-profile-status="{{ profile_run.status or ('completed' if latest_profile else 'idle') }}"
+  >
+    <div class="card-header">
+      <h2>Machine Profile</h2>
+      <span
+        class="pill pill-{{ profile_run.status or ('completed' if latest_profile else 'warning') }}"
+        data-profile-status-pill
+      >
+        {{ profile_run.status or ('completed' if latest_profile else 'not run') }}
+      </span>
+    </div>
+    <div class="interpretation-report" data-profile-report {% if not latest_profile %}hidden{% endif %}>
+      <div class="card-header">
+        <div>
+          <h3 data-profile-title>{{ project.host.name if project.host else project.name_guess }}</h3>
+          <p class="subtle" data-profile-lead>{{ latest_profile.lead_paragraph if latest_profile else "" }}</p>
+        </div>
+        <div class="inline-actions">
+          <span class="pill pill-info" data-profile-kind>{{ latest_profile.machine_kind if latest_profile else "" }}</span>
+          <span class="pill pill-neutral" data-profile-platform>{{ latest_profile.detected_platform if latest_profile else "" }}</span>
+          <span class="pill pill-neutral" data-profile-role>{{ latest_profile.detected_role if latest_profile else "" }}</span>
+          <span
+            class="pill pill-warning"
+            data-profile-needs-review
+            {% if not (latest_profile and latest_profile.confidence is not none and latest_profile.confidence < 0.70) %}hidden{% endif %}
+          >
+            needs review
+          </span>
+        </div>
+      </div>
+      <p><strong data-profile-role-summary>{{ latest_profile.project_role_summary if latest_profile else "" }}</strong></p>
+      <dl class="detail-list compact-detail-list">
+        <div><dt>Machine kind</dt><dd data-profile-kind-text>{{ latest_profile.machine_kind if latest_profile else "" }}</dd></div>
+        <div><dt>Platform</dt><dd data-profile-platform-text>{{ latest_profile.detected_platform if latest_profile else "" }}</dd></div>
+        <div><dt>Role</dt><dd data-profile-role-text>{{ latest_profile.detected_role if latest_profile else "" }}</dd></div>
+        <div><dt>Confidence</dt><dd data-profile-confidence>{{ "%.2f"|format(latest_profile.confidence) if latest_profile and latest_profile.confidence is not none else "" }}</dd></div>
+        <div><dt>Model used</dt><dd data-profile-model>{{ latest_profile.llm_model_used or "deterministic only" if latest_profile else "" }}</dd></div>
+        <div><dt>Last generated</dt><dd data-profile-generated-at>{{ latest_profile.last_generated_at|dt if latest_profile else "" }}</dd></div>
+      </dl>
+      <div class="notes-block">
+        <h4>Host resources</h4>
+        <dl class="detail-list compact-detail-list" data-profile-host-resources>
+          {% if latest_profile and latest_profile.host_resources_json %}
+            <div><dt>CPU</dt><dd>{{ latest_profile.host_resources_json.cpu_cores or "?" }} cores / {{ latest_profile.host_resources_json.cpu_threads or "?" }} threads</dd></div>
+            <div><dt>RAM</dt><dd>{{ latest_profile.host_resources_json.memory_gib or "Unknown" }} GiB</dd></div>
+            {% if latest_profile.host_resources_json.root_disk_gib %}
+              <div><dt>Root disk</dt><dd>{{ latest_profile.host_resources_json.root_disk_gib }} GiB total / {{ latest_profile.host_resources_json.root_used_gib or "Unknown" }} GiB used</dd></div>
+            {% endif %}
+            {% if latest_profile.host_resources_json.os %}
+              <div><dt>OS</dt><dd>{{ latest_profile.host_resources_json.os }}</dd></div>
+            {% endif %}
+            {% if latest_profile.host_resources_json.management_ip %}
+              <div><dt>Management IP</dt><dd>{{ latest_profile.host_resources_json.management_ip }}</dd></div>
+            {% endif %}
+          {% endif %}
+        </dl>
+      </div>
+
+      {% if latest_profile and latest_profile.story_template_type == "proxmox_hypervisor" %}
+        <div class="notes-block">
+          <h4>Storage</h4>
+          <ul class="timeline compact-timeline" data-profile-storage>
+            {% for item in latest_profile.host_resources_json.storage or [] %}
+              <li>{{ item.storage_name }}{% if item.mount_point %} at {{ item.mount_point }}{% endif %}{% if item.total_gib %} · {{ item.total_gib }} GiB total{% endif %}{% if item.available_gib %} · {{ item.available_gib }} GiB free{% endif %}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="notes-block">
+          <h4>Contained LXCs</h4>
+          <ul class="timeline compact-timeline" data-profile-lxcs>
+            {% for item in latest_profile.contained_workloads_json.lxcs or [] %}
+              <li>{{ item.name or ('LXC ' ~ item.guest_id) }} · {{ item.cores or "?" }} cores · {{ item.ram_mb or "?" }} MB RAM · {{ item.disk_summary or "disk unknown" }}{% if item.role_guess %} · {{ item.role_guess }}{% endif %}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="notes-block">
+          <h4>Contained VMs</h4>
+          <ul class="timeline compact-timeline" data-profile-vms>
+            {% for item in latest_profile.contained_workloads_json.vms or [] %}
+              <li>{{ item.name or ('VM ' ~ item.guest_id) }} · {{ item.cores or "?" }} vCPU · {{ item.ram_mb or "?" }} MB RAM · {{ item.disk_summary or "disk unknown" }}{% if item.role_guess %} · {{ item.role_guess }}{% endif %}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      {% if latest_profile and latest_profile.story_template_type in ["project_vm", "service_gateway"] %}
+        <div class="notes-block">
+          <h4>Project role</h4>
+          <dl class="detail-list compact-detail-list" data-profile-role-details>
+            {% if latest_profile.project_role_json %}
+              <div><dt>Primary purpose</dt><dd>{{ latest_profile.project_role_json.primary_purpose or "Unknown" }}</dd></div>
+              <div><dt>Environment type</dt><dd>{{ latest_profile.project_role_json.environment_type or "Unknown" }}</dd></div>
+              <div><dt>Detected stack</dt><dd>{{ latest_profile.project_role_json.detected_stack or "Unknown" }}</dd></div>
+            {% endif %}
+          </dl>
+        </div>
+      {% endif %}
+
+      <div class="notes-block">
+        <h4>How it is set up</h4>
+        <ul class="timeline compact-timeline" data-profile-setup>
+          {% for item in latest_profile.setup_details_json or [] %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      {% if latest_profile and latest_profile.story_template_type == "service_gateway" %}
+        <div class="notes-block">
+          <h4>Why it matters in my environment</h4>
+          <ul class="timeline compact-timeline" data-profile-why>
+            {% for item in latest_profile.why_it_matters_json or [] %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      {% if latest_profile and latest_profile.story_template_type != "proxmox_hypervisor" %}
+        <div class="notes-block">
+          <h4>Detected components</h4>
+          <ul class="timeline compact-timeline" data-profile-components>
+            {% for item in latest_profile.detected_components_json or [] %}
+              <li>{{ item.name }}{% if item.role %} · {{ item.role }}{% endif %}{% if item.path %} · <code>{{ item.path }}</code>{% endif %}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <div class="notes-block">
+        <h4>Observed indicators</h4>
+        <ul class="timeline compact-timeline" data-profile-evidence>
+          {% for item in latest_profile.evidence_json or [] %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="notes-block">
+        <h4>Topology facts</h4>
+        <ul class="timeline compact-timeline" data-profile-topology>
+          {% if topology_context.parent %}
+            <li>Hosted on {{ topology_context.parent.name }}{% if topology_context.parent.platform %} · {{ topology_context.parent.platform }}{% endif %}</li>
+            {% if topology_context.parent.guest_type %}<li>Guest type: {{ topology_context.parent.guest_type|upper }}</li>{% endif %}
+            {% if topology_context.parent.guest_id %}<li>Guest ID: {{ topology_context.parent.guest_id }}</li>{% endif %}
+          {% elif topology_context.guest_counts %}
+            <li>Enrolled guests: {{ topology_context.guest_counts.enrolled }}</li>
+            <li>Discovered-only guests: {{ topology_context.guest_counts.discovered }}</li>
+            {% if topology_context.guest_counts.unmanaged %}<li>Unmanaged guests: {{ topology_context.guest_counts.unmanaged }}</li>{% endif %}
+          {% endif %}
+        </ul>
+      </div>
+      <div class="notes-block">
+        <h4>Enrichment evidence</h4>
+        <ul class="timeline compact-timeline" data-profile-enrichment>
+          {% for item in project_enrichment_evidence[:12] %}
+            <li>
+              <strong>{{ item.source_type|replace('_', ' ')|title }}</strong>
+              {% if item.title %} · {{ item.title }}{% endif %}
+              {% if item.source_url %} · <a href="{{ item.source_url }}" target="_blank" rel="noreferrer">source</a>{% endif %}
+              <div>{{ item.evidence_text }}</div>
+            </li>
+          {% endfor %}
+          {% if not project_enrichment_evidence %}
+            <li>No MCP or Web Search enrichment evidence has been stored for this profile yet.</li>
+          {% endif %}
+        </ul>
+      </div>
+      <div class="notes-block">
+        <h4>Unknowns</h4>
+        <ul class="timeline compact-timeline" data-profile-unknowns>
+          {% for item in latest_profile.unknowns_json or [] %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="notes-block">
+        <h4>Notes</h4>
+        <ul class="timeline compact-timeline" data-profile-notes>
+          {% for note in latest_profile.notes_json or [] %}
+            <li>{{ note }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    <div class="empty-state compact" data-profile-empty {% if latest_profile %}hidden{% endif %}>
+      <h3>No machine profile yet</h3>
+      <p>{% if not profile_settings.enabled %}Machine profiles are currently disabled.{% elif not lmstudio_settings.enabled %}LM Studio formatting is disabled, but deterministic profiles can still be generated.{% else %}Generate a profile to store a structured machine profile for this project.{% endif %}</p>
+    </div>
+    <details class="live-output-box" data-profile-thinking {% if profile_run.status in ['queued', 'running', 'cancelling'] %}open{% endif %}>
+      <summary>Profile generation output</summary>
+      <div class="card-header">
+        <h3>Live profile output</h3>
+        <small data-profile-updated>{{ profile_run.updated_at or "" }}</small>
+      </div>
+      <pre class="code-block compact-block" data-profile-live-output>{% if profile_run.output %}{{ profile_run.output }}{% else %}Profile generation output will appear here while the refresh is running.{% endif %}</pre>
+    </details>
+    <details class="live-output-box" data-profile-json-wrap {% if not latest_profile %}hidden{% endif %}>
+      <summary>Profile record</summary>
+      <pre class="code-block" data-profile-json>{% if latest_profile %}{{ {
+        "machine_kind": latest_profile.machine_kind,
+        "story_template_type": latest_profile.story_template_type,
+        "detected_platform": latest_profile.detected_platform,
+        "detected_role": latest_profile.detected_role,
+        "confidence": latest_profile.confidence,
+        "lead_paragraph": latest_profile.lead_paragraph,
+        "project_role_summary": latest_profile.project_role_summary,
+        "host_resources_json": latest_profile.host_resources_json,
+        "project_role_json": latest_profile.project_role_json,
+        "setup_details_json": latest_profile.setup_details_json,
+        "contained_workloads_json": latest_profile.contained_workloads_json,
+        "detected_components_json": latest_profile.detected_components_json,
+        "why_it_matters_json": latest_profile.why_it_matters_json,
+        "notes_json": latest_profile.notes_json,
+        "unknowns_json": latest_profile.unknowns_json,
+        "evidence_json": latest_profile.evidence_json,
+        "llm_model_used": latest_profile.llm_model_used,
+        "last_generated_at": latest_profile.last_generated_at
+      }|json_pretty }}{% endif %}</pre>
+    </details>
+  </article>
+</section>
+
+{% if project.metadata_json and project.metadata_json.child_projects %}
+<section class="card project-fullwidth-card">
+  <div class="card-header">
+    <h2>Contained setups</h2>
+    <span>{{ project.metadata_json.child_projects|length }} discovered</span>
+  </div>
+  <table class="data-table compact-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Path</th>
+        <th>Markers</th>
+        <th>Files</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in project.metadata_json.child_projects %}
+        <tr>
+          <td>{{ item.name }}</td>
+          <td>{{ item.project_type }}</td>
+          <td><code>{{ item.path }}</code></td>
+          <td>{{ item.marker_names|join(", ") if item.marker_names else "None" }}</td>
+          <td>{{ item.file_inventory_count }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card project-fullwidth-card">
+  <div class="card-header">
+    <h2>Reviewed files and inventory</h2>
+    <span>{{ project.files|length }} stored entries</span>
+  </div>
+  {% if project.files %}
+    <table class="data-table compact-table">
+      <thead>
+        <tr>
+          <th>Path</th>
+          <th>Type</th>
+          <th>Last modified</th>
+          <th>AI review</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for file in project.files[:80] %}
+          <tr>
+            <td>
+              <strong>{{ file.relative_path }}</strong>
+              {% if file.content_sample %}
+                <details>
+                  <summary>Sample</summary>
+                  <pre class="code-block compact-block">{{ file.content_sample }}</pre>
+                </details>
+              {% endif %}
+            </td>
+            <td><span class="pill pill-neutral">{{ file.entry_type }}</span></td>
+            <td>{{ file.last_modified_at|dt }}</td>
+            <td>
+              {% if file.last_ai_reviewed_at %}
+                <span class="pill pill-info">reviewed</span>
+                <small>{{ file.last_ai_reviewed_at|dt }}</small>
+                {% if file.last_ai_reviewed_fingerprint and file.fingerprint and file.last_ai_reviewed_fingerprint != file.fingerprint %}
+                  <div><span class="pill pill-warning">changed</span></div>
+                {% endif %}
+              {% else %}
+                <span class="pill pill-warning">pending</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state compact">
+      <h3>No file inventory stored</h3>
+      <p>Run a scan to capture the project layout and safe file samples.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

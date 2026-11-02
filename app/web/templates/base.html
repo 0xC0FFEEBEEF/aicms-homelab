@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ app_name }}{% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="shell {% block shell_class %}{% endblock %}">
+    <header class="topbar">
+      <div>
+        <a class="brand" href="/web">{{ app_name }}</a>
+        <p class="subtle">Local inventory, SSH scanning, and LM Studio control.</p>
+      </div>
+      <nav class="nav">
+        <a class="{% if active_path == '/web' %}active{% endif %}" href="/web">Dashboard</a>
+        <a class="{% if active_path.startswith('/web/hosts') %}active{% endif %}" href="/web/hosts">Hosts</a>
+        <a class="{% if active_path.startswith('/web/projects') %}active{% endif %}" href="/web/projects">Projects</a>
+        <a class="{% if active_path.startswith('/web/investigations') %}active{% endif %}" href="/web/investigations">Investigations</a>
+        <a class="{% if active_path.startswith('/web/scans') %}active{% endif %}" href="/web/scans">Scans</a>
+        <a class="{% if active_path.startswith('/web/settings') %}active{% endif %}" href="/web/settings">Settings</a>
+        <a class="{% if active_path.startswith('/web/lmstudio') %}active{% endif %}" href="/web/lmstudio">LM Studio</a>
+        <button class="nav-debug-btn" type="button" data-debug-btn title="Debug log">&#9881;</button>
+      </nav>
+    </header>
+
+    {% if flashes %}
+      <section class="flash-stack">
+        {% for flash in flashes %}
+          <div class="flash flash-{{ flash.level }}">{{ flash.message }}</div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <main class="page {% block page_class %}{% endblock %}">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <div id="debug-overlay" class="debug-overlay" hidden>
+    <div class="debug-modal">
+      <div class="debug-modal__header">
+        <h3>Debug Log</h3>
+        <div class="debug-modal__actions">
+          <button type="button" data-debug-copy class="btn btn--small">Copy</button>
+          <button type="button" data-debug-close class="btn btn--small btn--ghost">&times;</button>
+        </div>
+      </div>
+      <pre id="debug-content" class="debug-modal__body"></pre>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

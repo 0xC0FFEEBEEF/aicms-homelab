@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %} · Enroll Guest {{ guest.guest_id }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Enroll discovered guest</h1>
+    <p class="subtle">
+      {{ guest.name or (guest.guest_type|upper ~ ' ' ~ guest.guest_id) }}
+      on {{ guest.host.name }}
+      · {{ guest.guest_type|upper }}
+      · guest {{ guest.guest_id }}
+    </p>
+  </div>
+  <a class="button button-ghost" href="/web/hosts/{{ guest.host_id }}">Back to Host</a>
+</section>
+
+<section class="two-column">
+  <article class="card">
+    <div class="card-header">
+      <h2>Add discovered guest as host</h2>
+      <span>Parent: {{ guest.host.name }}</span>
+    </div>
+    <form method="post" action="/api/guests/{{ guest.id }}/enroll" class="stack-form">
+      <label>
+        <span>Name</span>
+        <input type="text" name="name" value="{{ suggested_name }}" required>
+      </label>
+      <label>
+        <span>Address</span>
+        <input type="text" name="address" value="{{ guest.ip or '' }}" placeholder="Leave blank only until you know the guest address" required>
+      </label>
+      <div class="form-row">
+        <label>
+          <span>SSH Port</span>
+          <input type="number" name="ssh_port" value="22" min="1" max="65535" required>
+        </label>
+        <label>
+          <span>SSH User</span>
+          <input type="text" name="ssh_user" value="aicms" required>
+        </label>
+      </div>
+      <label>
+        <span>SSH Key Path</span>
+        <input type="text" name="ssh_key_path" value="{{ default_ssh_key_path }}">
+      </label>
+      <label>
+        <span>Allowlisted Roots</span>
+        <textarea name="roots_text" rows="5" placeholder="/srv/projects&#10;/opt" required>{{ suggested_roots_text }}</textarea>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" checked>
+        <span>Enable this host</span>
+      </label>
+      <button class="button" type="submit">Add as Host</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Bootstrap discovered guest</h2>
+      <span>Uses the existing bootstrapper</span>
+    </div>
+    <form method="post" action="/api/guests/{{ guest.id }}/bootstrap" class="stack-form">
+      <label>
+        <span>Name</span>
+        <input type="text" name="name" value="{{ suggested_name }}" required>
+      </label>
+      <label>
+        <span>Address</span>
+        <input type="text" name="address" value="{{ guest.ip or '' }}" placeholder="Guest IP or hostname" required>
+      </label>
+      <div class="form-row">
+        <label>
+          <span>SSH Port</span>
+          <input type="number" name="ssh_port" value="22" min="1" max="65535" required>
+        </label>
+        <label>
+          <span>SSH User</span>
+          <input type="text" name="ssh_user" value="aicms" required>
+        </label>
+      </div>
+      <label>
+        <span>SSH Key Path</span>
+        <input type="text" name="ssh_key_path" value="{{ default_ssh_key_path }}">
+      </label>
+      <label>
+        <span>Allowlisted Roots</span>
+        <textarea name="roots_text" rows="5" placeholder="/srv/projects&#10;/opt" required>{{ suggested_roots_text }}</textarea>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" checked>
+        <span>Enable this host</span>
+      </label>
+      <div class="section-divider"></div>
+      <label>
+        <span>Bootstrap SSH User</span>
+        <input type="text" name="bootstrap_user" value="root" required>
+      </label>
+      <label>
+        <span>Bootstrap Password</span>
+        <input type="password" name="bootstrap_password">
+      </label>
+      <label>
+        <span>Sudo Password</span>
+        <input type="password" name="sudo_password">
+      </label>
+      <button class="button button-secondary" type="submit">Bootstrap Guest</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Link to an existing host</h2>
+      <span>Deterministic parent/guest relationship</span>
+    </div>
+    <form method="post" action="/api/guests/{{ guest.id }}/link" class="stack-form">
+      <label>
+        <span>Existing host record</span>
+        <select name="existing_host_id" required>
+          <option value="">Choose a host</option>
+          {% for host in existing_hosts %}
+            <option value="{{ host.id }}" {% if guest.linked_host_id == host.id %}selected{% endif %}>{{ host.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="button button-ghost" type="submit">Link Existing Host</button>
+    </form>
+
+    <form method="post" action="/api/guests/{{ guest.id }}/unmanaged" class="stack-form" onsubmit="return confirm('Mark this discovered guest as unmanaged?');">
+      <button class="button button-danger" type="submit">Mark Unmanaged</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

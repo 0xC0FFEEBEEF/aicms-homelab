@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %} · Investigations{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Investigations</h1>
+    <p class="subtle">Interactive investigation sessions let AICMS collect facts, ask targeted questions, revise a working draft, and only apply host or project changes after you confirm.</p>
+  </div>
+  <div class="inline-actions">
+    <a class="button" href="/web/investigations/new">Start Investigation</a>
+  </div>
+</section>
+
+<section class="card project-fullwidth-stack">
+  <div class="card-header">
+    <h2>Recent sessions</h2>
+    <span>{{ investigations|length }} total</span>
+  </div>
+  {% if investigations %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Target</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Phase</th>
+          <th>Host</th>
+          <th>Project</th>
+          <th>Updated</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in investigations %}
+        <tr>
+          <td>{{ item.target_name or item.target_address or ("Session #" ~ item.id) }}</td>
+          <td>{{ item.target_type }}</td>
+          <td><span class="pill pill-{{ item.status }}">{{ item.status }}</span></td>
+          <td>{{ item.current_phase }}</td>
+          <td>{% if item.linked_host %}<a href="/web/hosts/{{ item.linked_host.id }}">{{ item.linked_host.name }}</a>{% else %}—{% endif %}</td>
+          <td>{% if item.linked_project %}<a href="/web/projects/{{ item.linked_project.id }}">{{ item.linked_project.name_guess or item.linked_project.path }}</a>{% else %}—{% endif %}</td>
+          <td>{{ item.updated_at|dt }}</td>
+          <td>
+            <div class="inline-actions">
+              <a class="button button-secondary" href="/web/investigations/{{ item.id }}">Open</a>
+              <form method="post" action="/api/investigations/{{ item.id }}/delete" onsubmit="return confirm('Delete this investigation session?');">
+                <button class="button button-small button-danger" type="submit">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <h3>No investigations yet</h3>
+    <p>Start an investigation against an existing host, a discovered guest, or a manual SSH target.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

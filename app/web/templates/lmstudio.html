@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %} · LM Studio{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>LM Studio</h1>
+    <p class="subtle">Check connectivity, inspect available models, run a prompt test, and review recent interaction logs.</p>
+  </div>
+  <div class="button-row">
+    <form method="post" action="/api/lmstudio/test">
+      <input type="hidden" name="mode" value="connection">
+      <button class="button button-secondary" type="submit">Test Connection</button>
+    </form>
+    <form method="post" action="/api/lmstudio/test">
+      <input type="hidden" name="mode" value="prompt">
+      <button class="button" type="submit">Run Prompt Test</button>
+    </form>
+    <form method="post" action="/api/lmstudio/models/refresh">
+      <button class="button button-ghost" type="submit">Refresh Models</button>
+    </form>
+  </div>
+</section>
+
+<section class="card-grid">
+  <article class="card">
+    <h2>Connection</h2>
+    <dl class="detail-list">
+      <div><dt>Server URL</dt><dd>{{ lmstudio_settings.base_url }}</dd></div>
+      <div><dt>Enabled</dt><dd>{{ "Yes" if lmstudio_settings.enabled else "No" }}</dd></div>
+      <div><dt>Selected model</dt><dd>{{ lmstudio_settings.selected_model or "None" }}</dd></div>
+      <div><dt>Timeout mode</dt><dd>{{ "Custom" if lmstudio_settings.use_custom_timeout else "App default" }}</dd></div>
+      <div><dt>Effective timeout</dt><dd>{{ lmstudio_settings.request_timeout_seconds if lmstudio_settings.use_custom_timeout else request.app.state.config.lmstudio_timeout_seconds }} seconds</dd></div>
+      <div><dt>Last successful contact</dt><dd>{{ lmstudio_settings.last_successful_contact|dt }}</dd></div>
+      <div><dt>Last refresh</dt><dd>{{ lmstudio_settings.last_refresh_time|dt }}</dd></div>
+      <div><dt>Last error</dt><dd>{{ lmstudio_settings.last_error or "None" }}</dd></div>
+    </dl>
+  </article>
+
+  <article class="card">
+    <h2>Models</h2>
+    {% if models %}
+      <ul class="timeline">
+        {% for model in models %}
+          <li>
+            <strong>{{ model.model_id }}</strong>
+            <small>Last seen {{ model.last_seen_at|dt }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No models cached</h3>
+        <p>Use Refresh Models to pull `/v1/models` from LM Studio.</p>
+      </div>
+    {% endif %}
+  </article>
+</section>
+
+<section class="card">
+  <div class="card-header">
+    <h2>Recent interaction logs</h2>
+    <a href="/web/settings?tab=lmstudio">Back to settings</a>
+  </div>
+  {% if logs %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Action</th>
+          <th>Status</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+          <tr>
+            <td>{{ log.created_at|dt }}</td>
+            <td>{{ log.action }}</td>
+            <td><span class="pill pill-{{ log.status }}">{{ log.status }}</span></td>
+            <td>{{ log.message }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state compact">
+      <h3>No LM Studio logs yet</h3>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

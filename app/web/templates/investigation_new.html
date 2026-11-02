@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %} · New Investigation{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>New Investigation</h1>
+    <p class="subtle">Start an interactive investigation against an existing host, a discovered guest, or a manual SSH target. AICMS will collect facts, draft findings, ask targeted questions if needed, and wait for your confirmation before it applies anything.</p>
+  </div>
+</section>
+
+<section class="card project-fullwidth-stack">
+  <article class="card">
+    <h2>Start from an existing host</h2>
+    <form method="post" action="/api/investigations" class="stack-form">
+      <input type="hidden" name="target_type" value="existing_host">
+      <label for="existing-host-id">Host</label>
+      <select id="existing-host-id" name="existing_host_id">
+        {% for host in hosts %}
+          <option value="{{ host.id }}">{{ host.name }} · {{ host.address }}</option>
+        {% endfor %}
+      </select>
+      <div class="inline-actions">
+        <button class="button" type="submit">Start investigation</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="card">
+    <h2>Start from a discovered guest</h2>
+    <form method="post" action="/api/investigations" class="stack-form">
+      <input type="hidden" name="target_type" value="discovered_guest">
+      <label for="discovered-guest-id">Discovered guest</label>
+      <select id="discovered-guest-id" name="discovered_guest_id">
+        {% for guest in guests %}
+          <option value="{{ guest.id }}">
+            {{ guest.name or (guest.guest_type|upper ~ " " ~ guest.guest_id) }}
+            · {{ guest.host.name }}
+            {% if guest.ip %}· {{ guest.ip }}{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+      <label for="discovered-guest-roots">Allowlisted roots</label>
+      <textarea id="discovered-guest-roots" name="roots_text" rows="4" placeholder="/srv/projects&#10;/opt&#10;/home/service"></textarea>
+      <div class="inline-actions">
+        <button class="button" type="submit">Start investigation</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="card">
+    <h2>Start from a manual SSH target</h2>
+    <form method="post" action="/api/investigations" class="stack-form">
+      <input type="hidden" name="target_type" value="manual_ssh_target">
+      <label for="manual-target-name">Target name</label>
+      <input id="manual-target-name" name="name" required>
+      <label for="manual-target-address">Address / hostname</label>
+      <input id="manual-target-address" name="address" required>
+      <div class="form-row">
+        <div>
+          <label for="manual-target-port">SSH port</label>
+          <input id="manual-target-port" type="number" min="1" max="65535" name="ssh_port" value="22">
+        </div>
+        <div>
+          <label for="manual-target-user">SSH user</label>
+          <input id="manual-target-user" name="ssh_user" value="aicms" required>
+        </div>
+      </div>
+      <label for="manual-target-key">SSH key path</label>
+      <input id="manual-target-key" name="ssh_key_path" value="{{ default_ssh_key_path }}">
+      <label for="manual-target-roots">Allowlisted roots</label>
+      <textarea id="manual-target-roots" name="roots_text" rows="5" required placeholder="/srv/projects&#10;/opt&#10;/home/workload"></textarea>
+      <div class="inline-actions">
+        <button class="button" type="submit">Start investigation</button>
+      </div>
+    </form>
+  </article>
+</section>
+{% endblock %}

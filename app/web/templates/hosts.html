@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %} · Hosts{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Hosts</h1>
+    <p class="subtle">Manage SSH targets, allowlisted roots, and manual scan actions.</p>
+  </div>
+  <a class="button" href="/web/hosts/new">Add Host</a>
+</section>
+
+<section class="card">
+  {% if hosts %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Address</th>
+          <th>SSH User</th>
+          <th>Status</th>
+          <th>Last Seen</th>
+          <th>Last Scan</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for host in hosts %}
+          <tr>
+            <td><a href="/web/hosts/{{ host.id }}">{{ host.name }}</a></td>
+            <td>{{ host.address }}:{{ host.ssh_port }}</td>
+            <td>{{ host.ssh_user }}</td>
+            <td><span class="pill pill-{{ host.connection_status }}">{{ host.connection_status }}</span></td>
+            <td>{{ host.last_seen_at|dt }}</td>
+            <td>{{ latest_scan_status[host.id] }}</td>
+            <td>
+              <div class="inline-actions">
+                <form method="post" action="/api/hosts/{{ host.id }}/test">
+                  <button class="button button-small button-secondary" type="submit">Test</button>
+                </form>
+                <form method="post" action="/api/hosts/{{ host.id }}/scan/full">
+                  <button class="button button-small" type="submit">Full</button>
+                </form>
+                <form method="post" action="/api/hosts/{{ host.id }}/scan/incremental">
+                  <button class="button button-small button-ghost" type="submit">Incremental</button>
+                </form>
+                <form
+                  method="post"
+                  action="/api/hosts/{{ host.id }}/delete"
+                  onsubmit="return confirm('Remove host {{ host.name }} and its discovered projects?');"
+                >
+                  <input type="hidden" name="return_to" value="/web/hosts">
+                  <button class="button button-small button-danger" type="submit">Remove</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <h2>No hosts configured</h2>
+      <p>Create the first host and add one or more allowlisted roots before running scans.</p>
+      <a class="button" href="/web/hosts/new">Create First Host</a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Website Preview{% endblock %}</title>
+  <link rel="stylesheet" href="/static/public_preview.css">
+</head>
+<body class="site-shell site-shell--visible site-shell--no-reveal">
+  <div class="public-shell">
+    <div class="scene-backdrop" aria-hidden="true">
+      <div class="scene-backdrop__mesh"></div>
+    </div>
+
+    <header class="site-nav site-nav--visible">
+      <a href="{{ preview_base_url }}" class="site-brand">nbdevlab</a>
+      <div class="site-nav__right">
+        <a class="button site-nav__rain-button" href="{{ back_url }}">Back to AICMS</a>
+        <nav aria-label="Preview modes">
+          <ul class="site-nav__list">
+            <li><a class="{% if preview_mode == 'projects' %}active{% endif %}" href="{{ preview_mode_urls.projects }}">Projects Page</a></li>
+            <li><a class="{% if preview_mode == 'card' %}active{% endif %}" href="{{ preview_mode_urls.card }}">Card</a></li>
+            {% if preview_mode_urls.detail is defined %}
+              <li><a class="{% if preview_mode == 'detail' %}active{% endif %}" href="{{ preview_mode_urls.detail }}">Project Detail</a></li>
+            {% endif %}
+            <li><a class="{% if preview_mode == 'fields' %}active{% endif %}" href="{{ preview_mode_urls.fields }}">CMS Fields</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main class="public-main public-main--projects public-main--visible">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %} · Projects{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Projects</h1>
+    <p class="subtle">Filter the discovered inventory by host, type, git status, and recent change activity.</p>
+  </div>
+  <div class="inline-actions">
+    <a class="button button-secondary" href="{{ projects_preview_url }}">Website Preview</a>
+  </div>
+</section>
+
+<section class="card">
+  <form method="get" class="filter-grid">
+    <label>
+      <span>Host</span>
+      <select name="host_id">
+        <option value="">All hosts</option>
+        {% for host in hosts %}
+          <option value="{{ host.id }}" {% if filters.host_id == host.id %}selected{% endif %}>{{ host.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Project type</span>
+      <select name="project_type">
+        <option value="">All types</option>
+        {% for item in project_types %}
+          <option value="{{ item }}" {% if filters.project_type == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Git status</span>
+      <select name="git_state">
+        <option value="all" {% if filters.git_state == 'all' %}selected{% endif %}>All</option>
+        <option value="git" {% if filters.git_state == 'git' %}selected{% endif %}>Git only</option>
+        <option value="non-git" {% if filters.git_state == 'non-git' %}selected{% endif %}>Non-git only</option>
+      </select>
+    </label>
+    <label>
+      <span>Sort</span>
+      <select name="sort">
+        <option value="last_seen" {% if filters.sort == 'last_seen' %}selected{% endif %}>Last seen</option>
+        <option value="modified" {% if filters.sort == 'modified' %}selected{% endif %}>Last modified</option>
+        <option value="name" {% if filters.sort == 'name' %}selected{% endif %}>Name</option>
+        <option value="path" {% if filters.sort == 'path' %}selected{% endif %}>Path</option>
+        <option value="type" {% if filters.sort == 'type' %}selected{% endif %}>Type</option>
+      </select>
+    </label>
+    <label class="search-span">
+      <span>Quick search</span>
+      <input type="text" name="q" value="{{ filters.q }}" placeholder="Search by path or project name">
+    </label>
+    <label class="checkbox filter-checkbox">
+      <input type="checkbox" name="recently_changed" value="1" {% if filters.recently_changed %}checked{% endif %}>
+      <span>Changed in the last 7 days</span>
+    </label>
+    <div class="button-row">
+      <button class="button" type="submit">Apply Filters</button>
+      <a class="button button-ghost" href="/web/projects">Reset</a>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  {% if projects %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Host</th>
+          <th>Path</th>
+          <th>Type</th>
+          <th>Git</th>
+          <th>Markers</th>
+          <th>Last Seen</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for project in projects %}
+          <tr>
+            <td><a href="/web/projects/{{ project.id }}">{{ project.name_guess or "Unnamed" }}</a></td>
+            <td>{{ project.host.name if project.host else "Unknown" }}</td>
+            <td>
+              {% if project.metadata_json and project.metadata_json.setup_kind == "host-summary" %}
+                {% set roots = project.metadata_json.grouped_roots or [] %}
+                <strong>Host summary</strong>
+                {% if roots %}
+                  <div class="subtle">{{ roots|length }} allowlisted root{{ "" if roots|length == 1 else "s" }}</div>
+                  <small>{{ roots[:3]|join(", ") }}{% if roots|length > 3 %}, ...{% endif %}</small>
+                {% endif %}
+              {% else %}
+                <code>{{ project.path }}</code>
+              {% endif %}
+            </td>
+            <td>{{ project.project_type }}</td>
+            <td>{{ "Yes" if project.is_git_repo else "No" }}</td>
+            <td>{{ project.markers|length }}</td>
+            <td>{{ project.last_seen_at|dt }}</td>
+            <td>
+              <div class="inline-actions">
+                <a class="button button-small button-ghost" href="/web/projects/{{ project.id }}">Open</a>
+                <a class="button button-small button-ghost" href="/web/projects/{{ project.id }}/preview">Preview</a>
+                <form method="post" action="/api/projects/{{ project.id }}/delete" onsubmit="return confirm('Remove this project from AICMS?');">
+                  <input type="hidden" name="return_to" value="/web/projects">
+                  <button class="button button-small button-danger" type="submit">Remove</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <h2>No projects match these filters</h2>
+      <p>Run a scan or broaden the filters to see discovered projects.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

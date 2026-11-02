@@ -1,0 +1,36 @@
+<article class="project-card">
+  <h2>{{ preview.card.title }}</h2>
+  <div class="project-card__body">
+    {% for block in preview.publish.content_blocks %}
+      {% if block.kind == "paragraph" %}
+        <p class="project-card__paragraph">{{ block.text }}</p>
+      {% elif block.kind == "group" %}
+        <section class="project-card__group">
+          {% if block.heading %}
+            <h3 class="project-card__group-title">{{ block.heading }}</h3>
+          {% endif %}
+          <ul class="project-card__group-list">
+            {% for item in block.items %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% if preview.card.tech %}
+    <div class="project-tags">
+      {% for tech in preview.card.tech %}
+        <span>{{ tech }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+  <div class="project-links">
+    {% if preview.card.demo_url %}
+      <a href="{{ preview.card.demo_url }}" target="_blank" rel="noreferrer">Demo</a>
+    {% endif %}
+    {% if preview.card.repo_url %}
+      <a href="{{ preview.card.repo_url }}" target="_blank" rel="noreferrer">Repo</a>
+    {% endif %}
+  </div>
+</article>

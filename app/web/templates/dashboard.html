@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %} · Dashboard{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Inventory dashboard</h1>
+    <p class="subtle">Manual scans only. Use the controls below to inspect hosts, refresh inventory, and watch recent errors.</p>
+  </div>
+  <div class="button-row">
+    <form method="post" action="/api/scan/full">
+      <button class="button" type="submit">Run Full Scan</button>
+    </form>
+    <form method="post" action="/api/scan/incremental">
+      <button class="button button-secondary" type="submit">Run Incremental Scan</button>
+    </form>
+    <a class="button button-ghost" href="/web/settings?tab=github">Check Repo Status</a>
+  </div>
+</section>
+
+<section class="card-grid metrics">
+  <article class="card metric-card">
+    <span class="eyebrow">Hosts</span>
+    <strong>{{ total_hosts }}</strong>
+    <p>{{ reachable_hosts }} reachable</p>
+  </article>
+  <article class="card metric-card">
+    <span class="eyebrow">Projects</span>
+    <strong>{{ total_projects }}</strong>
+    <p>Stored in local inventory</p>
+  </article>
+  <article class="card metric-card">
+    <span class="eyebrow">LM Studio</span>
+    <strong>{{ "Enabled" if lmstudio_settings.enabled else "Disabled" }}</strong>
+    <p>{{ lmstudio_settings.selected_model or "No model selected" }}</p>
+  </article>
+  <article class="card metric-card">
+    <span class="eyebrow">Updates</span>
+    <strong>{{ "Available" if github_settings.update_available else "Current" }}</strong>
+    <p>{{ github_settings.remote_revision or "No repo check yet" }}</p>
+  </article>
+</section>
+
+<section class="two-column">
+  <article class="card">
+    <div class="card-header">
+      <h2>Latest scans</h2>
+      <a href="/web/scans">View all</a>
+    </div>
+    {% if latest_scans %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th>Projects</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for scan in latest_scans %}
+            <tr>
+              <td><a href="/web/scans?scan_id={{ scan.id }}">#{{ scan.id }}</a></td>
+              <td>{{ scan.scan_type }}</td>
+              <td><span class="pill pill-{{ scan.status }}">{{ scan.status }}</span></td>
+              <td>{{ scan.started_at|dt }}</td>
+              <td>{{ scan.projects_found }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <h3>No scans yet</h3>
+        <p>Add a host and trigger a manual scan to populate the inventory.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Recent scan errors</h2>
+      <a href="/web/scans">Inspect history</a>
+    </div>
+    {% if recent_errors %}
+      <ul class="timeline">
+        {% for event in recent_errors %}
+          <li>
+            <span class="pill pill-error">{{ event.event_type }}</span>
+            <strong>{{ event.message }}</strong>
+            <small>{{ event.created_at|dt }}</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No recent errors</h3>
+        <p>Recent scan activity has not reported failures.</p>
+      </div>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

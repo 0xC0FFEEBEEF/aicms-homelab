@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %} · New Host{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Add host</h1>
+    <p class="subtle">Each host may include multiple allowlisted roots. AICMS will not scan outside them.</p>
+  </div>
+  <a class="button button-ghost" href="/web/hosts">Back to Hosts</a>
+</section>
+
+<section class="card narrow-card">
+  <form method="post" action="/api/hosts" class="stack-form">
+    <label>
+      <span>Name</span>
+      <input type="text" name="name" placeholder="app-vm-01" required>
+    </label>
+    <label>
+      <span>Address</span>
+      <input type="text" name="address" placeholder="10.20.0.12" required>
+    </label>
+    <div class="form-row">
+      <label>
+        <span>SSH Port</span>
+        <input type="number" name="ssh_port" value="22" min="1" max="65535" required>
+      </label>
+      <label>
+        <span>SSH User</span>
+        <input type="text" name="ssh_user" placeholder="aicms" required>
+      </label>
+    </div>
+    <label>
+      <span>SSH Key Path</span>
+      <input type="text" name="ssh_key_path" value="{{ default_ssh_key_path }}" placeholder="~/.ssh/aicms_scanner_ed25519">
+      <small class="subtle">Use the private key path. If you paste a `.pub` path, AICMS will normalize it.</small>
+    </label>
+    <label>
+      <span>Allowlisted Roots</span>
+      <textarea name="roots_text" rows="5" placeholder="/srv/projects&#10;/opt/apps" required></textarea>
+    </label>
+    <label>
+      <span>Proxmox node name</span>
+      <input type="text" name="proxmox_node_name" placeholder="Optional helper for Proxmox roots">
+      <small class="subtle">If this is a Proxmox host, replace any <code>&lt;your-node&gt;</code> placeholders with the real node name before saving.</small>
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="enabled" checked>
+      <span>Enable this host for manual scans</span>
+    </label>
+    <div class="button-row">
+      <button class="button" type="submit">Save Host</button>
+      <button class="button button-secondary" type="submit" formaction="/api/hosts/bootstrap">Bootstrap + Save Host</button>
+      <a class="button button-ghost" href="/web/hosts">Cancel</a>
+    </div>
+
+    <div class="section-divider"></div>
+    <h2>Bootstrap remote access</h2>
+    <p class="subtle">Optional: connect with an existing account, create/configure the target scanner user, install the public key, then immediately test access.</p>
+    <label>
+      <span>Bootstrap SSH User</span>
+      <input type="text" name="bootstrap_user" placeholder="root" value="root">
+    </label>
+    <label>
+      <span>Bootstrap Password</span>
+      <input type="password" name="bootstrap_password" placeholder="Password for the bootstrap account">
+    </label>
+    <label>
+      <span>Sudo Password</span>
+      <input type="password" name="sudo_password" placeholder="Optional if the bootstrap user is root or shares the same password">
+    </label>
+  </form>
+</section>
+{% endblock %}

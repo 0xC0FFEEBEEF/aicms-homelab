@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %} · Scans{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Scans</h1>
+    <p class="subtle">Inspect manual scan history, status, summaries, and per-scan events.</p>
+  </div>
+</section>
+
+<section class="two-column wide-right">
+  <article class="card">
+    <div class="card-header">
+      <h2>History</h2>
+      <div class="inline-actions">
+        <span>{{ scans|length }} recent scans</span>
+        {% if scans %}
+          <form method="post" action="/api/scans/delete-all" onsubmit="return confirm('Remove all finished scan history? Active scans will be kept.');">
+            <button class="button button-danger button-small" type="submit">Clear History</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+    {% if scans %}
+      <ul class="scan-list">
+        {% for scan in scans %}
+          <li class="{% if selected_scan and selected_scan.id == scan.id %}selected{% endif %}">
+            <a href="/web/scans?scan_id={{ scan.id }}">
+              <strong>#{{ scan.id }} · {{ scan.scan_type }}</strong>
+              <span class="pill pill-{{ scan.status }}">{{ scan.status }}</span>
+              <small>{{ scan.started_at|dt }}</small>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact">
+        <h3>No scans recorded</h3>
+      </div>
+    {% endif %}
+  </article>
+
+  <article
+    class="card"
+    {% if selected_scan %}
+      data-scan-detail
+      data-scan-id="{{ selected_scan.id }}"
+      data-scan-status="{{ selected_scan.status }}"
+    {% endif %}
+  >
+    {% if selected_scan %}
+      {% set active_scan = selected_scan.status in ['queued', 'running', 'cancelling'] %}
+      <div class="card-header">
+        <h2>Scan #{{ selected_scan.id }}</h2>
+        <div class="inline-actions">
+          <span class="pill pill-{{ selected_scan.status }}" data-scan-status-pill>{{ selected_scan.status }}</span>
+          <form method="post" action="/api/scans/{{ selected_scan.id }}/stop" data-scan-stop-form {% if not active_scan %}hidden{% endif %}>
+            <button class="button button-danger" type="submit">Stop Scan</button>
+          </form>
+          <form
+            method="post"
+            action="/api/scans/{{ selected_scan.id }}/delete"
+            {% if active_scan %}hidden{% endif %}
+            onsubmit="return confirm('Remove scan #{{ selected_scan.id }} from history?');"
+          >
+            <button class="button button-danger" type="submit">Remove Scan</button>
+          </form>
+        </div>
+      </div>
+      <dl class="detail-list" data-scan-metadata>
+        <div><dt>Type</dt><dd data-scan-type>{{ selected_scan.scan_type }}</dd></div>
+        <div><dt>Started</dt><dd data-scan-started>{{ selected_scan.started_at|dt }}</dd></div>
+        <div><dt>Finished</dt><dd data-scan-finished>{{ selected_scan.finished_at|dt }}</dd></div>
+        <div><dt>Hosts scanned</dt><dd data-scan-hosts>{{ selected_scan.hosts_scanned }}</dd></div>
+        <div><dt>Projects found</dt><dd data-scan-projects>{{ selected_scan.projects_found }}</dd></div>
+        <div><dt>Errors</dt><dd data-scan-errors>{{ selected_scan.errors_count }}</dd></div>
+        <div><dt>Summary</dt><dd data-scan-summary>{{ selected_scan.summary or "No summary recorded." }}</dd></div>
+      </dl>
+      <p class="subtle live-note" data-scan-live-note {% if selected_scan.status not in ['queued', 'running', 'cancelling'] %}hidden{% endif %}>
+        Live updates are active while this scan is queued, running, or stopping.
+      </p>
+      <h3>Events</h3>
+      {% if selected_events %}
+        <ul class="timeline" data-scan-events>
+          {% for event in selected_events %}
+            <li data-event-id="{{ event.id }}">
+              <span class="pill pill-{{ event.level }}">{{ event.level }}</span>
+              <strong>{{ event.event_type }}</strong>
+              <p>{{ event.message }}</p>
+              {% if event.details_json %}
+                <pre class="code-block compact-block">{{ event.details_json|json_pretty }}</pre>
+              {% endif %}
+              <small>{{ event.created_at|dt }}</small>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state compact" data-scan-empty>
+          <h3>No events recorded</h3>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-state">
+        <h2>Select a scan</h2>
+        <p>Choose a scan from the left to inspect its events.</p>
+      </div>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

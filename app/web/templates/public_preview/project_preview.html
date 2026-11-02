@@ -1,0 +1,339 @@
+{% extends "public_preview_base.html" %}
+{% block title %}Website Preview · {{ preview.title }}{% endblock %}
+{% block content %}
+  {% if preview_mode == "projects" %}
+    <section class="glass-section projects-page reveal-card" style="--delay: 120ms;">
+      <h1>Projects</h1>
+      <div class="project-grid project-grid--full project-grid--masonry">
+        {% for item in preview_items %}
+          {% set preview = item %}
+          {% include "public_preview/_project_card.html" %}
+        {% endfor %}
+      </div>
+    </section>
+  {% elif preview_mode == "card" %}
+    <section class="glass-section projects-page reveal-card" style="--delay: 120ms;">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Projects</p>
+          <h2>Project card</h2>
+        </div>
+      </div>
+      <div class="project-grid project-grid--full{% if preview_items|length > 1 %} project-grid--masonry{% endif %} preview-card-grid{% if preview_items|length > 1 %} preview-card-grid--multi{% endif %}">
+        {% for item in preview_items %}
+          {% set preview = item %}
+          {% include "public_preview/_project_card.html" %}
+        {% endfor %}
+      </div>
+    </section>
+  {% elif preview_mode == "detail" %}
+    {% for preview in preview_items %}
+      <section class="glass-section reveal-card public-project-detail" style="--delay: 120ms;">
+        <p class="eyebrow">Project detail preview</p>
+        <h1>{{ preview.detail.title }}</h1>
+        <p class="preview-detail-subtitle">{{ preview.detail.short_summary }}</p>
+        {% if preview.detail.tech %}
+          <div class="project-tags preview-chip-grid">
+            {% for tech in preview.detail.tech %}
+              <span>{{ tech }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if preview.detail.demo_url or preview.detail.repo_url %}
+          <div class="project-links">
+            {% if preview.detail.demo_url %}
+              <a href="{{ preview.detail.demo_url }}" target="_blank" rel="noreferrer">Demo</a>
+            {% endif %}
+            {% if preview.detail.repo_url %}
+              <a href="{{ preview.detail.repo_url }}" target="_blank" rel="noreferrer">Repo</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="glass-section reveal-card" style="--delay: 150ms;">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Overview</p>
+            <h2>Public project detail</h2>
+          </div>
+        </div>
+        <pre class="preview-long-copy">{{ preview.detail.long_description }}</pre>
+      </section>
+
+      {% if preview.detail.detail_sections %}
+        <section class="glass-section reveal-card" style="--delay: 165ms;">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Project walkthrough</p>
+              <h2>Build details</h2>
+            </div>
+          </div>
+          <ul class="preview-bullet-list">
+            {% for item in preview.detail.detail_sections %}
+              {% if item.endswith(":") %}
+                <li><strong>{{ item }}</strong></li>
+              {% else %}
+                <li>{{ item }}</li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <section class="glass-section reveal-card" style="--delay: 180ms;">
+        <div class="preview-field-grid">
+          {% if preview.detail.role_in_lab %}
+            <article class="preview-field">
+              <h3>Role in my lab</h3>
+              <p>{{ preview.detail.role_in_lab }}</p>
+            </article>
+          {% endif %}
+          {% if preview.detail.host_resources %}
+            <article class="preview-field">
+              <h3>Host resources</h3>
+              <ul class="preview-bullet-list">
+                {% for item in preview.detail.host_resources %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+          {% if preview.detail.setup_summary %}
+            <article class="preview-field">
+              <h3>How it is set up</h3>
+              <ul class="preview-bullet-list">
+                {% for item in preview.detail.setup_summary %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+          {% if preview.detail.related_hosts %}
+            <article class="preview-field">
+              <h3>Related hosts</h3>
+              <ul class="preview-bullet-list">
+                {% for host in preview.detail.related_hosts %}
+                  <li>{{ host.name }}{% if host.address %} — {{ host.address }}{% endif %}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+          {% if preview.detail.notes_or_highlights %}
+            <article class="preview-field">
+              <h3>Notes / highlights</h3>
+              <ul class="preview-bullet-list">
+                {% for item in preview.detail.notes_or_highlights %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+        </div>
+      </section>
+
+      {% if preview.detail.hosted_workload_summary %}
+        <section class="glass-section reveal-card" style="--delay: 210ms;">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Hosted workload summary</p>
+              <h2>Hosted workloads</h2>
+            </div>
+          </div>
+          <ul class="preview-bullet-list">
+            {% for item in preview.detail.hosted_workload_summary %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      {% if preview.detail.hosted_lxcs %}
+        <section class="glass-section reveal-card" style="--delay: 240ms;">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Hosted LXCs</p>
+              <h2>LXC inventory</h2>
+            </div>
+          </div>
+          <div class="preview-table-wrap">
+            <table class="preview-guest-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>ID</th>
+                  <th>Status</th>
+                  <th>CPU</th>
+                  <th>RAM</th>
+                  <th>Disk</th>
+                  <th>Role</th>
+                  <th>Linked host</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for guest in preview.detail.hosted_lxcs %}
+                  <tr>
+                    <td>{{ guest.guest_name }}</td>
+                    <td>{{ guest.guest_id or "Unknown" }}</td>
+                    <td>{{ guest.status or "Unknown" }}</td>
+                    <td>{{ guest.cpu or "Unknown" }}</td>
+                    <td>{{ guest.ram or "Unknown" }}</td>
+                    <td>{{ guest.disk or "Unknown" }}</td>
+                    <td>{{ guest.role or "Unknown" }}</td>
+                    <td>
+                      {% if guest.linked_host_id %}
+                        <a href="/web/hosts/{{ guest.linked_host_id }}">{{ guest.linked_host_name or ("Host " ~ guest.linked_host_id) }}</a>
+                      {% else %}
+                        Not enrolled
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+
+      {% if preview.detail.hosted_vms %}
+        <section class="glass-section reveal-card" style="--delay: 270ms;">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Hosted VMs</p>
+              <h2>VM inventory</h2>
+            </div>
+          </div>
+          <div class="preview-table-wrap">
+            <table class="preview-guest-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>ID</th>
+                  <th>Status</th>
+                  <th>CPU</th>
+                  <th>RAM</th>
+                  <th>Disk</th>
+                  <th>Role</th>
+                  <th>Linked host</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for guest in preview.detail.hosted_vms %}
+                  <tr>
+                    <td>{{ guest.guest_name }}</td>
+                    <td>{{ guest.guest_id or "Unknown" }}</td>
+                    <td>{{ guest.status or "Unknown" }}</td>
+                    <td>{{ guest.cpu or "Unknown" }}</td>
+                    <td>{{ guest.ram or "Unknown" }}</td>
+                    <td>{{ guest.disk or "Unknown" }}</td>
+                    <td>{{ guest.role or "Unknown" }}</td>
+                    <td>
+                      {% if guest.linked_host_id %}
+                        <a href="/web/hosts/{{ guest.linked_host_id }}">{{ guest.linked_host_name or ("Host " ~ guest.linked_host_id) }}</a>
+                      {% else %}
+                        Not enrolled
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    {% for preview in preview_items %}
+      <section class="glass-section reveal-card" style="--delay: 120ms;">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">CMS field preview</p>
+            <h2>{{ preview.publish.title }}</h2>
+          </div>
+        </div>
+        <div class="preview-field-grid">
+          {% for row in preview.cms_fields %}
+            <article class="preview-field {% if row.missing %}preview-field--missing{% endif %}">
+              <h3>{{ row.label }}</h3>
+              {% if row.multiline %}
+                <pre class="preview-long-copy">{{ row.value }}</pre>
+              {% else %}
+                <p>{{ row.value }}</p>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="glass-section reveal-card" style="--delay: 150ms;">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Publish-ready copy</p>
+            <h2>{{ preview.publish.title }}</h2>
+          </div>
+        </div>
+        <div class="preview-field-grid">
+          <article class="preview-field preview-field--full">
+            <h3>Publish-ready description</h3>
+            <pre class="preview-long-copy">{{ preview.publish.long_description }}</pre>
+          </article>
+        </div>
+        {% if preview.publish.sections %}
+          <div class="preview-warning-list">
+            {% for item in preview.publish.sections %}
+              <div class="notice">
+                <p>{{ item }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="glass-section reveal-card" style="--delay: 180ms;">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Preview inspector</p>
+            <h2>Readiness and mapping notes</h2>
+          </div>
+        </div>
+        <div class="preview-field-grid">
+          <article class="preview-field">
+            <h3>Publishability</h3>
+            <p>{{ preview.publishability_status|replace('_', ' ') }}</p>
+          </article>
+          <article class="preview-field">
+            <h3>Machine kind</h3>
+            <p>{{ preview.machine_kind or "Unknown" }}</p>
+          </article>
+          <article class="preview-field">
+            <h3>Detected role</h3>
+            <p>{{ preview.detected_role or "Unknown" }}</p>
+          </article>
+          <article class="preview-field">
+            <h3>Detected platform</h3>
+            <p>{{ preview.detected_platform or "Unknown" }}</p>
+          </article>
+        </div>
+      </section>
+
+      {% if preview.warnings %}
+        <section class="glass-section reveal-card" style="--delay: 240ms;">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Warnings</p>
+              <h2>What still needs attention</h2>
+            </div>
+          </div>
+          <div class="preview-warning-list">
+            {% for warning in preview.warnings %}
+              <div class="notice {% if warning.level == 'error' %}notice--error{% endif %}">
+                <strong>{{ warning.label }}</strong>
+                <p>{{ warning.detail }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endblock %}

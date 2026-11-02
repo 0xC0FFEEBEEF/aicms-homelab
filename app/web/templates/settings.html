@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+{% block title %} · Settings{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Settings</h1>
+    <p class="subtle">General configuration, scan defaults, machine profile behavior, LM Studio settings, GitHub auth, and VM connectivity commands.</p>
+  </div>
+</section>
+
+<section class="tabs">
+  <a class="{% if tab == 'general' %}active{% endif %}" href="/web/settings?tab=general">General</a>
+  <a class="{% if tab == 'scan' %}active{% endif %}" href="/web/settings?tab=scan">Scan Settings</a>
+  <a class="{% if tab == 'profiles' %}active{% endif %}" href="/web/settings?tab=profiles">Machine Profiles</a>
+  <a class="{% if tab == 'lmstudio' %}active{% endif %}" href="/web/settings?tab=lmstudio">LM Studio</a>
+  <a class="{% if tab == 'mcp' %}active{% endif %}" href="/web/settings?tab=mcp">MCP Integration</a>
+  <a class="{% if tab == 'web-search' %}active{% endif %}" href="/web/settings?tab=web-search">Web Search</a>
+  <a class="{% if tab == 'github' %}active{% endif %}" href="/web/settings?tab=github">GitHub</a>
+  <a class="{% if tab == 'connectivity' %}active{% endif %}" href="/web/settings?tab=connectivity">Connectivity</a>
+</section>
+
+{% if tab == 'general' %}
+  <section class="card narrow-card">
+    <form method="post" action="/api/settings/general" class="stack-form">
+      <label>
+        <span>App name</span>
+        <input type="text" name="app_name" value="{{ general_settings.app_name }}" required>
+      </label>
+      <label>
+        <span>Timezone</span>
+        <input type="text" name="timezone" value="{{ general_settings.timezone }}" required>
+      </label>
+      <label>
+        <span>Default max file tree depth</span>
+        <input type="number" name="default_max_tree_depth" value="{{ general_settings.default_max_tree_depth }}" min="1" max="8" required>
+      </label>
+      <label>
+        <span>Default scanner SSH key path</span>
+        <input type="text" name="default_scanner_ssh_key_path" value="{{ general_settings.default_scanner_ssh_key_path }}" required>
+        <small class="subtle">Used to prefill add-host, discovered-guest enrollment, and bootstrap forms when no host-specific key path is set.</small>
+      </label>
+      <button class="button" type="submit">Save General Settings</button>
+    </form>
+  </section>
+{% elif tab == 'scan' %}
+  <section class="card narrow-card">
+    <form method="post" action="/api/settings/scan" class="stack-form">
+      <label>
+        <span>Global ignore patterns</span>
+        <textarea name="ignore_patterns" rows="10" required>{% for item in scan_settings.ignore_patterns %}{{ item }}
+{% endfor %}</textarea>
+      </label>
+      <label>
+        <span>Allowed marker files</span>
+        <textarea name="allowed_marker_files" rows="10" required>{% for item in scan_settings.allowed_marker_files %}{{ item }}
+{% endfor %}</textarea>
+      </label>
+      <label>
+        <span>Max read bytes for sampled files</span>
+        <input type="number" name="max_read_bytes" value="{{ scan_settings.max_read_bytes }}" min="256" max="1048576" required>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="collect_shallow_file_trees" {% if scan_settings.collect_shallow_file_trees %}checked{% endif %}>
+        <span>Collect shallow file trees</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="collect_recent_git_metadata" {% if scan_settings.collect_recent_git_metadata %}checked{% endif %}>
+        <span>Collect recent git metadata</span>
+      </label>
+      <button class="button" type="submit">Save Scan Settings</button>
+    </form>
+  </section>
+{% elif tab == 'profiles' %}
+  <section class="two-column">
+    <article class="card">
+      <form method="post" action="/api/settings/profiles" class="stack-form">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled" {% if profile_settings.enabled %}checked{% endif %}>
+          <span>Enable machine profiles</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="enable_lmstudio_formatting" {% if profile_settings.enable_lmstudio_formatting %}checked{% endif %}>
+          <span>Enable LM Studio profile formatting</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="fallback_to_deterministic_profile" {% if profile_settings.fallback_to_deterministic_profile %}checked{% endif %}>
+          <span>Fall back to deterministic-only profiles when LM Studio is unavailable</span>
+        </label>
+        <div class="form-row">
+          <label>
+            <span>Max guests shown</span>
+            <input type="number" name="max_guests_shown" value="{{ profile_settings.max_guests_shown }}" min="1" max="200" required>
+          </label>
+          <label>
+            <span>Max services shown</span>
+            <input type="number" name="max_services_shown" value="{{ profile_settings.max_services_shown }}" min="1" max="200" required>
+          </label>
+        </div>
+        <label>
+          <span>Max setup bullets shown</span>
+          <input type="number" name="max_setup_bullets_shown" value="{{ profile_settings.max_setup_bullets_shown }}" min="1" max="40" required>
+        </label>
+        <button class="button" type="submit">Save Machine Profile Settings</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>Machine profile behavior</h2>
+      <ul class="timeline compact-timeline">
+        <li>Host facts are collected deterministically over SSH with read-only commands.</li>
+        <li>Machine kind and story template are classified before any LM Studio formatting happens.</li>
+        <li>LM Studio now formats narrative fields instead of inventing the machine identity from scratch.</li>
+        <li>When fallback is enabled, AICMS still produces a usable profile if LM Studio is down.</li>
+      </ul>
+    </article>
+  </section>
+{% elif tab == 'lmstudio' %}
+  <section class="two-column">
+    <article class="card">
+      <form method="post" action="/api/settings/lmstudio" class="stack-form">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled" {% if lmstudio_settings.enabled %}checked{% endif %}>
+          <span>Enable LM Studio integration</span>
+        </label>
+        <label>
+          <span>Base URL</span>
+          <input type="text" name="base_url" value="{{ lmstudio_settings.base_url }}" required>
+        </label>
+        <label>
+          <span>API token</span>
+          <input type="password" name="api_token" placeholder="{{ 'Stored: hidden' if lmstudio_settings.api_token else 'Optional' }}">
+        </label>
+        <label>
+          <span>Selected model</span>
+          <select name="selected_model">
+            <option value="">Choose a model</option>
+            {% for model in lmstudio_models %}
+              <option value="{{ model.model_id }}" {% if lmstudio_settings.selected_model == model.model_id %}selected{% endif %}>{{ model.model_id }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="form-row">
+          <label>
+            <span>Temperature</span>
+            <input type="number" step="0.1" min="0" max="2" name="temperature" value="{{ lmstudio_settings.temperature }}">
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" name="use_max_output_tokens" {% if lmstudio_settings.use_max_output_tokens %}checked{% endif %}>
+            <span>Use maximum available output tokens for final summaries</span>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>
+            <span>Manual final-summary max tokens</span>
+            <input type="number" min="64" max="8192" name="max_tokens" value="{{ lmstudio_settings.max_tokens }}">
+            <small class="subtle">
+              {% if lmstudio_settings.use_max_output_tokens %}
+                Saved as a fallback. Profile formatting currently omits the token cap and lets the model use its maximum available output budget.
+              {% else %}
+                Profile formatting currently uses this explicit token cap.
+              {% endif %}
+            </small>
+          </label>
+        </div>
+        <label class="checkbox">
+          <input type="checkbox" name="use_custom_timeout" {% if lmstudio_settings.use_custom_timeout %}checked{% endif %}>
+          <span>Use a custom LM Studio timeout</span>
+        </label>
+        <label>
+          <span>Request timeout (seconds)</span>
+          <input type="number" min="5" max="3600" name="request_timeout_seconds" value="{{ lmstudio_settings.request_timeout_seconds }}">
+          <small class="subtle">
+            {% if lmstudio_settings.use_custom_timeout %}
+              Custom timeout is active.
+            {% else %}
+              App default timeout is active now: {{ request.app.state.config.lmstudio_timeout_seconds }} seconds.
+            {% endif %}
+          </small>
+        </label>
+        <button class="button" type="submit">Save LM Studio Settings</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>LM Studio status</h2>
+      <dl class="detail-list">
+        <div><dt>Final summary tokens</dt><dd>{{ "Model maximum available output" if lmstudio_settings.use_max_output_tokens else lmstudio_settings.max_tokens }}</dd></div>
+        <div><dt>Timeout mode</dt><dd>{{ "Custom" if lmstudio_settings.use_custom_timeout else "App default" }}</dd></div>
+        <div><dt>Effective timeout</dt><dd>{{ lmstudio_settings.request_timeout_seconds if lmstudio_settings.use_custom_timeout else request.app.state.config.lmstudio_timeout_seconds }} seconds</dd></div>
+        <div><dt>Last successful contact</dt><dd>{{ lmstudio_settings.last_successful_contact|dt }}</dd></div>
+        <div><dt>Last model refresh</dt><dd>{{ lmstudio_settings.last_refresh_time|dt }}</dd></div>
+        <div><dt>Last error</dt><dd>{{ lmstudio_settings.last_error or "None" }}</dd></div>
+      </dl>
+      <div class="button-row">
+        <form method="post" action="/api/lmstudio/test">
+          <input type="hidden" name="mode" value="connection">
+          <button class="button button-secondary" type="submit">Test Connection</button>
+        </form>
+        <form method="post" action="/api/lmstudio/models/refresh">
+          <button class="button" type="submit">Refresh Models</button>
+        </form>
+        <a class="button button-ghost" href="/web/lmstudio">Open LM Studio Page</a>
+      </div>
+    </article>
+  </section>
+{% elif tab == 'mcp' %}
+  <section class="two-column">
+    <article class="card">
+      <form method="post" action="/api/settings/mcp" class="stack-form">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled" {% if mcp_settings.enabled %}checked{% endif %}>
+          <span>Enable MCP integration</span>
+        </label>
+        <label>
+          <span>MCP server URL</span>
+          <input type="text" name="server_url" value="{{ mcp_settings.server_url or '' }}" placeholder="http://mcp.internal/rpc">
+        </label>
+        <label>
+          <span>Auth token / API key</span>
+          <input type="password" name="api_token" placeholder="{{ 'Stored: hidden' if mcp_settings.api_token else 'Optional' }}">
+        </label>
+        <label>
+          <span>Allowed tools or namespaces</span>
+          <textarea name="allowed_tools" rows="6" placeholder="search*&#10;docs.read">{{ mcp_settings.allowed_tools|join('\n') }}</textarea>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="read_only_search_only" {% if mcp_settings.read_only_search_only %}checked{% endif %}>
+          <span>Read-only / search-only mode</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="auto_enrich_after_scan" {% if mcp_settings.auto_enrich_after_scan %}checked{% endif %}>
+          <span>Auto-enrich after scan</span>
+        </label>
+        <div class="form-row">
+          <label>
+            <span>Max searches per profile refresh</span>
+            <input type="number" name="max_searches_per_profile_refresh" value="{{ mcp_settings.max_searches_per_profile_refresh }}" min="1" max="20" required>
+          </label>
+          <label>
+            <span>Timeout seconds</span>
+            <input type="number" name="timeout_seconds" value="{{ mcp_settings.timeout_seconds }}" min="1" max="300" required>
+          </label>
+        </div>
+        <label>
+          <span>Max results/items</span>
+          <input type="number" name="max_results_items" value="{{ mcp_settings.max_results_items }}" min="1" max="100" required>
+        </label>
+        <button class="button" type="submit">Save MCP Settings</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>MCP status</h2>
+      <dl class="detail-list">
+        <div><dt>Read-only mode</dt><dd>{{ "Enabled" if mcp_settings.read_only_search_only else "Disabled" }}</dd></div>
+        <div><dt>Last successful contact</dt><dd>{{ mcp_settings.last_successful_contact|dt }}</dd></div>
+        <div><dt>Last error</dt><dd>{{ mcp_settings.last_error or "None" }}</dd></div>
+      </dl>
+      <div class="button-row">
+        <form method="post" action="/api/mcp/test">
+          <button class="button button-secondary" type="submit">Test MCP Connection</button>
+        </form>
+      </div>
+      <p class="subtle">MCP enrichment is disabled by default and should stay bounded to read-only or search-like tools.</p>
+    </article>
+  </section>
+{% elif tab == 'web-search' %}
+  <section class="two-column">
+    <article class="card">
+      <form method="post" action="/api/settings/web-search" class="stack-form">
+        <label class="checkbox">
+          <input type="checkbox" name="enabled" {% if web_search_settings.enabled %}checked{% endif %}>
+          <span>Enable Web Search</span>
+        </label>
+        <label>
+          <span>Web Search Engine</span>
+          <select name="engine">
+            <option value="searxng" {% if web_search_settings.engine == 'searxng' %}selected{% endif %}>searxng</option>
+            <option value="disabled" {% if web_search_settings.engine == 'disabled' %}selected{% endif %}>disabled</option>
+          </select>
+        </label>
+        <label>
+          <span>Search query URL</span>
+          <input type="text" name="query_url_template" value="{{ web_search_settings.query_url_template }}" required>
+          <small class="subtle">Must contain <code>&lt;query&gt;</code> when Web Search is enabled.</small>
+        </label>
+        <div class="form-row">
+          <label>
+            <span>Search language</span>
+            <input type="text" name="language" value="{{ web_search_settings.language }}">
+          </label>
+          <label>
+            <span>Search result count</span>
+            <input type="number" name="result_count" value="{{ web_search_settings.result_count }}" min="1" max="50" required>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>
+            <span>Concurrent requests</span>
+            <input type="number" name="concurrent_requests" value="{{ web_search_settings.concurrent_requests }}" min="1" max="50" required>
+          </label>
+          <label>
+            <span>Loader concurrent requests</span>
+            <input type="number" name="loader_concurrent_requests" value="{{ web_search_settings.loader_concurrent_requests }}" min="1" max="50" required>
+          </label>
+        </div>
+        <label>
+          <span>Domain filters</span>
+          <textarea name="domain_filters" rows="5" placeholder="example.com&#10;docs.example.org">{{ web_search_settings.domain_filters|join('\n') }}</textarea>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="bypass_embedding_and_retrieval" {% if web_search_settings.bypass_embedding_and_retrieval %}checked{% endif %}>
+          <span>Bypass embedding and retrieval</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="bypass_web_loader" {% if web_search_settings.bypass_web_loader %}checked{% endif %}>
+          <span>Bypass web loader</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="trust_proxy_environment" {% if web_search_settings.trust_proxy_environment %}checked{% endif %}>
+          <span>Trust proxy environment</span>
+        </label>
+        <div class="form-row">
+          <label>
+            <span>Web Loader Engine</span>
+            <input type="text" name="loader_engine" value="{{ web_search_settings.loader_engine }}">
+          </label>
+          <label>
+            <span>Timeout</span>
+            <input type="number" name="timeout" value="{{ web_search_settings.timeout }}" min="1" max="120" required>
+          </label>
+        </div>
+        <label class="checkbox">
+          <input type="checkbox" name="verify_ssl_certificate" {% if web_search_settings.verify_ssl_certificate %}checked{% endif %}>
+          <span>Verify SSL certificate</span>
+        </label>
+        <div class="form-row">
+          <label>
+            <span>YouTube language</span>
+            <input type="text" name="youtube_language" value="{{ web_search_settings.youtube_language }}">
+          </label>
+          <label>
+            <span>YouTube proxy URL</span>
+            <input type="text" name="youtube_proxy_url" value="{{ web_search_settings.youtube_proxy_url or '' }}">
+          </label>
+        </div>
+        <button class="button" type="submit">Save Web Search Settings</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>Web Search testing</h2>
+      <dl class="detail-list">
+        <div><dt>Last successful connection</dt><dd>{{ web_search_settings.last_successful_connection|dt }}</dd></div>
+        <div><dt>Last error</dt><dd>{{ web_search_settings.last_error or "None" }}</dd></div>
+        <div><dt>Rendered request preview</dt><dd><code>{{ web_search_settings.query_url_template|replace('<query>', 'aicms+test') }}</code></dd></div>
+      </dl>
+      <div class="button-row">
+        <form method="post" action="/api/web-search/test">
+          <button class="button button-secondary" type="submit">Test Connection</button>
+        </form>
+        <form method="post" action="/api/web-search/test-search">
+          <input type="hidden" name="query" value="aicms test">
+          <button class="button" type="submit">Test Search</button>
+        </form>
+      </div>
+      <p class="subtle">Web Search is optional bounded supplemental context. Local facts remain the source of truth.</p>
+    </article>
+  </section>
+{% elif tab == 'github' %}
+  <section class="two-column">
+    <article class="card">
+      <form method="post" action="/api/settings/github" class="stack-form">
+        <label>
+          <span>Repo owner</span>
+          <input type="text" name="repo_owner" value="{{ github_settings.repo_owner or '' }}" placeholder="your-org">
+        </label>
+        <label>
+          <span>Repo name</span>
+          <input type="text" name="repo_name" value="{{ github_settings.repo_name or '' }}" placeholder="AICMS">
+        </label>
+        <label>
+          <span>Branch</span>
+          <input type="text" name="branch" value="{{ github_settings.branch or 'main' }}" required>
+        </label>
+        <label>
+          <span>GitHub PAT</span>
+          <input type="password" name="pat" placeholder="{{ github_token_masked or 'Optional if gh is already authenticated' }}">
+        </label>
+        <button class="button" type="submit">Save GitHub Settings</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>Update status</h2>
+      <dl class="detail-list">
+        <div><dt>Last checked</dt><dd>{{ github_settings.last_checked_at|dt }}</dd></div>
+        <div><dt>Local revision</dt><dd><code>{{ github_settings.local_revision or 'Unknown' }}</code></dd></div>
+        <div><dt>Remote revision</dt><dd><code>{{ github_settings.remote_revision or 'Unknown' }}</code></dd></div>
+        <div><dt>Update available</dt><dd>{{ "Yes" if github_settings.update_available else "No" }}</dd></div>
+        <div><dt>Last error</dt><dd>{{ github_settings.last_error or "None" }}</dd></div>
+        <div><dt>Updater status</dt><dd>{{ updater_status.status|replace('_', ' ')|title }}</dd></div>
+        <div><dt>Updater message</dt><dd>{{ updater_status.message }}</dd></div>
+        <div><dt>Updater started</dt><dd>{{ updater_status.started_at or "Never" }}</dd></div>
+        <div><dt>Updater finished</dt><dd>{{ updater_status.finished_at or "Not finished" }}</dd></div>
+        <div><dt>Updater exit code</dt><dd>{{ updater_status.exit_code if updater_status.exit_code is not none else "N/A" }}</dd></div>
+      </dl>
+      <div class="button-row">
+        <form method="post" action="/api/github/check-updates">
+          <button class="button" type="submit">Check For Updates</button>
+        </form>
+      </div>
+      <h3>Run updater from the UI</h3>
+      <form method="post" action="/api/github/run-update" class="stack-form">
+        <label>
+          <span>Sudo password</span>
+          <input type="password" name="sudo_password" placeholder="Optional if the service user already has the required sudo access">
+          <small class="subtle">Used only for this updater run. It is not persisted in AICMS settings.</small>
+        </label>
+        <button class="button" type="submit">Run Update Script</button>
+      </form>
+      {% if updater_status.log_tail %}
+        <h3>Latest updater log</h3>
+        <pre class="code-block">{{ updater_status.log_tail }}</pre>
+      {% endif %}
+      <h3>Manual update command</h3>
+      <pre class="code-block">./scripts/update_aicms.sh</pre>
+    </article>
+  </section>
+{% else %}
+  <section class="two-column">
+    <article class="card">
+      <h2>Connectivity helper</h2>
+      <form method="get" action="/web/settings" class="stack-form">
+        <input type="hidden" name="tab" value="connectivity">
+        <label>
+          <span>Host context</span>
+          <select name="host_id">
+            <option value="">Generic commands</option>
+            {% for host in hosts %}
+              <option value="{{ host.id }}" {% if selected_host and selected_host.id == host.id %}selected{% endif %}>{{ host.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="button button-secondary" type="submit">Load Commands</button>
+      </form>
+    </article>
+
+    <article class="card">
+      <h2>Target VM commands</h2>
+      <p class="subtle">These snippets help establish SSH connectivity and verify allowlisted roots.</p>
+      {% for item in connectivity_commands %}
+        <div class="command-card">
+          <div class="card-header">
+            <h3>{{ item.title }}</h3>
+            <button class="button button-small button-ghost copy-button" type="button" data-copy-text="{{ item.command }}">Copy</button>
+          </div>
+          <pre class="code-block">{{ item.command }}</pre>
+        </div>
+      {% endfor %}
+    </article>
+  </section>
+{% endif %}
+{% endblock %}

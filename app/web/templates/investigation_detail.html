@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %} · Investigation {{ investigation.id }}{% endblock %}
+{% block shell_class %}shell-wide{% endblock %}
+{% block page_class %}page-investigation{% endblock %}
+{% block content %}
+{% set draft_state = draft_state if draft_state is defined else (investigation.draft_report_json or {}) %}
+{% set active_investigation = investigation.status in ['queued', 'running', 'drafting', 'applying', 'cancelling'] %}
+<section class="hero hero-agent">
+  <div class="hero-agent__copy">
+    <p class="eyebrow">Interactive Investigation</p>
+    <h1>{{ investigation.target_name or investigation.target_address or ("Investigation #" ~ investigation.id) }}</h1>
+    <p class="subtle hero-agent__summary">
+      AICMS treats this as a live assistant session: it collects facts, revises the working draft, asks only targeted questions,
+      and waits for your confirmation before it applies anything.
+    </p>
+    <div class="tag-row">
+      <span class="pill pill-info">{{ investigation.target_type }}</span>
+      <span class="pill pill-{{ investigation.status }}" data-investigation-status-pill>{{ investigation.status }}</span>
+      <span class="pill pill-neutral" data-investigation-phase-pill>{{ investigation.current_phase }}</span>
+      <span class="pill pill-neutral">confirmation: <span data-investigation-confirmation>{{ investigation.confirmation_state }}</span></span>
+    </div>
+    {% if investigation.target_address %}
+      <p class="subtle">{{ investigation.target_address }}</p>
+    {% endif %}
+  </div>
+  <div class="inline-actions hero-agent__actions">
+    <a class="button button-secondary" href="/web/investigations/{{ investigation.id }}/preview">Website Preview</a>
+    <details class="action-menu">
+      <summary><span class="button button-secondary">Session Tools</span></summary>
+      <div class="action-menu-panel">
+        <form method="post" action="/api/investigations/{{ investigation.id }}/collect">
+          <button class="button button-secondary" type="submit">Collect Fresh Facts</button>
+        </form>
+        <form method="post" action="/api/investigations/{{ investigation.id }}/regenerate">
+          <button class="button button-secondary" type="submit">Regenerate Draft</button>
+        </form>
+      </div>
+    </details>
+    <form method="post" action="/api/investigations/{{ investigation.id }}/stop" data-investigation-stop-form {% if not active_investigation %}hidden{% endif %}>
+      <button class="button button-danger" type="submit">Stop</button>
+    </form>
+    <form method="post" action="/api/investigations/{{ investigation.id }}/confirm">
+      <button class="button button-secondary" type="submit">Confirm Draft</button>
+    </form>
+    <form method="post" action="/api/investigations/{{ investigation.id }}/apply">
+      <button class="button {% if investigation.confirmation_state != 'confirmed' %}button-secondary{% endif %}" type="submit">Apply Approved Changes</button>
+    </form>
+    <form method="post" action="/api/investigations/{{ investigation.id }}/delete" onsubmit="return confirm('Delete this investigation session?');">
+      <button class="button button-danger" type="submit">Delete</button>
+    </form>
+  </div>
+</section>
+
+<section class="investigation-workspace" data-investigation-detail data-investigation-id="{{ investigation.id }}">
+  <article class="card investigation-chat-panel">
+    <div class="card-header investigation-chat-panel__header">
+      <h2>Assistant Conversation</h2>
+      <div class="investigation-chat-panel__meta">
+        <span class="pill pill-neutral">session #{{ investigation.id }}</span>
+        <span class="subtle" data-investigation-updated>{{ investigation.updated_at|dt }}</span>
+      </div>
+    </div>
+    <div class="investigation-thread-shell" data-investigation-thread-shell>
+      <div class="investigation-thread" data-investigation-messages>
+        {% for message in investigation.messages if not message.hidden_internal and message.sender_type in ['user', 'ai'] %}
+        <article class="investigation-message investigation-message-{{ message.sender_type }}">
+          <div class="investigation-message__meta">
+            <strong>{{ "AI Assistant" if message.sender_type == "ai" else "You" }}</strong>
+            <span>{{ message.created_at|dt }}</span>
+          </div>
+          <div class="investigation-message-content">{{ message.content }}</div>
+          {% if message.metadata_json and message.metadata_json.ai_rationale %}
+            <p class="subtle investigation-rationale"><strong>Why this matters:</strong> {{ message.metadata_json.ai_rationale }}</p>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+    <form method="post" action="/api/investigations/{{ investigation.id }}/message" class="investigation-composer" data-investigation-message-form>
+      <label for="investigation-message">Message the assistant</label>
+      <textarea
+        id="investigation-message"
+        name="content"
+        rows="3"
+        placeholder="Reply to the AI, add guidance, ask for a fresh recollect, or say "looks good" when you want to confirm the draft intent."
+        data-investigation-message-input
+      ></textarea>
+      <div class="investigation-composer__footer">
+        <p class="subtle">Facts update automatically. Ask for a fresh collection only if you want the host revisited.</p>
+        <button class="button" type="submit" data-investigation-message-submit>Send</button>
+      </div>
+    </form>
+  </article>
+
+  <article class="card investigation-draft-panel">
+    <div class="card-header">
+      <h2>Working Draft Preview</h2>
+      <span data-investigation-draft-state>
+        {% if draft_state.visible_draft_source == 'working' %}
+          working
+        {% elif draft_state.visible_draft_source == 'assistant' and active_investigation %}
+          last AI draft shown while updating
+        {% elif draft_state.visible_draft_source == 'assistant' %}
+          assistant draft
+        {% elif draft_state.visible_draft_source == 'base' %}
+          base draft
+        {% else %}
+          no draft yet
+        {% endif %}
+      </span>
+    </div>
+    <div class="investigation-draft-preview" data-investigation-working-preview>
+      {% if working_preview %}
+        <section class="draft-preview-hero">
+          <h3 data-investigation-draft-title>{{ working_preview.detail.title or working_preview.title }}</h3>
+          {% if working_preview.detail.short_summary %}
+            <p class="subtle draft-preview-subtitle">{{ working_preview.detail.short_summary }}</p>
+          {% endif %}
+          {% if working_preview.detail.tech %}
+            <div class="tag-row draft-preview-tags">
+              {% for tech in working_preview.detail.tech %}
+                <span class="pill pill-neutral">{{ tech }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </section>
+
+        {% if working_preview.detail.long_description %}
+          <section class="draft-preview-section">
+            <h4 class="draft-preview-section__heading">Overview</h4>
+            <p class="draft-preview-long-copy" data-investigation-draft-text>{{ working_preview.detail.long_description }}</p>
+          </section>
+        {% endif %}
+
+        {% if working_preview.detail.detail_sections %}
+          <section class="draft-preview-section">
+            <h4 class="draft-preview-section__heading">Build details</h4>
+            <ul class="draft-preview-list">
+              {% for item in working_preview.detail.detail_sections %}
+                {% if item.endswith(":") %}
+                  <li><strong>{{ item }}</strong></li>
+                {% else %}
+                  <li>{{ item }}</li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+
+        <section class="draft-preview-field-grid">
+          {% if working_preview.detail.role_in_lab %}
+            <article class="draft-preview-field">
+              <h4>Role in my lab</h4>
+              <p>{{ working_preview.detail.role_in_lab }}</p>
+            </article>
+          {% endif %}
+          {% if working_preview.detail.host_resources %}
+            <article class="draft-preview-field">
+              <h4>Host resources</h4>
+              <ul class="draft-preview-list">
+                {% for item in working_preview.detail.host_resources %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+          {% if working_preview.detail.setup_summary %}
+            <article class="draft-preview-field">
+              <h4>How it is set up</h4>
+              <ul class="draft-preview-list">
+                {% for item in working_preview.detail.setup_summary %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+          {% if working_preview.detail.related_hosts %}
+            <article class="draft-preview-field">
+              <h4>Related hosts</h4>
+              <ul class="draft-preview-list">
+                {% for host in working_preview.detail.related_hosts %}
+                  <li>{{ host.name }}{% if host.address %} — {{ host.address }}{% endif %}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+          {% if working_preview.detail.notes_or_highlights %}
+            <article class="draft-preview-field">
+              <h4>Notes / highlights</h4>
+              <ul class="draft-preview-list">
+                {% for item in working_preview.detail.notes_or_highlights %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endif %}
+        </section>
+
+        {% if working_preview.detail.hosted_workload_summary %}
+          <section class="draft-preview-section">
+            <h4 class="draft-preview-section__heading">Hosted workloads</h4>
+            <ul class="draft-preview-list">
+              {% for item in working_preview.detail.hosted_workload_summary %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+
+        {% if working_preview.detail.hosted_lxcs %}
+          <section class="draft-preview-section">
+            <h4 class="draft-preview-section__heading">LXC inventory</h4>
+            <ul class="draft-preview-list">
+              {% for guest in working_preview.detail.hosted_lxcs %}
+                <li>{{ guest.guest_name }}{% if guest.guest_id %} (#{{ guest.guest_id }}){% endif %}{% if guest.status %} — {{ guest.status }}{% endif %}{% if guest.role %} — {{ guest.role }}{% endif %}</li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+
+        {% if working_preview.detail.hosted_vms %}
+          <section class="draft-preview-section">
+            <h4 class="draft-preview-section__heading">VM inventory</h4>
+            <ul class="draft-preview-list">
+              {% for guest in working_preview.detail.hosted_vms %}
+                <li>{{ guest.guest_name }}{% if guest.guest_id %} (#{{ guest.guest_id }}){% endif %}{% if guest.status %} — {{ guest.status }}{% endif %}{% if guest.role %} — {{ guest.role }}{% endif %}</li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+
+        {% if working_preview.detail.custom_sections %}
+          {% for section in working_preview.detail.custom_sections %}
+            <section class="draft-preview-section">
+              <h4 class="draft-preview-section__heading">{{ section.heading }}</h4>
+              <ul class="draft-preview-list">
+                {% for item in section.items %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </section>
+          {% endfor %}
+        {% endif %}
+      {% else %}
+        <div class="draft-preview-empty">
+          <h4 data-investigation-draft-title>Draft pending</h4>
+          <p class="subtle" data-investigation-draft-text>The assistant will draft here after the first pass.</p>
+        </div>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+<section class="investigation-meta-strip">
+  <article class="card investigation-meta-card">
+    <div class="card-header">
+      <h2>Live Session</h2>
+      <span data-investigation-phase>{{ investigation.current_phase }}</span>
+    </div>
+    <dl class="detail-list compact-detail-list">
+      <div><dt>Status</dt><dd data-investigation-status>{{ investigation.status }}</dd></div>
+      <div><dt>Confirmation</dt><dd data-investigation-confirmation-side>{{ investigation.confirmation_state }}</dd></div>
+      <div><dt>Target</dt><dd>{{ investigation.target_name or "Unknown" }}</dd></div>
+      <div><dt>Address</dt><dd>{{ investigation.target_address or "Unknown" }}</dd></div>
+      <div><dt>Started by</dt><dd>{{ investigation.started_by }}</dd></div>
+      <div><dt>Last error</dt><dd data-investigation-error>{{ investigation.last_error or "None" }}</dd></div>
+    </dl>
+    {% if investigation.linked_host %}
+      <p class="subtle">Linked host: <a href="/web/hosts/{{ investigation.linked_host.id }}">{{ investigation.linked_host.name }}</a></p>
+    {% endif %}
+    {% if investigation.linked_project %}
+      <p class="subtle">Linked project: <a href="/web/projects/{{ investigation.linked_project.id }}">{{ investigation.linked_project.name_guess or investigation.linked_project.path }}</a></p>
+    {% endif %}
+  </article>
+  <article class="card investigation-meta-card">
+    <div class="card-header">
+      <h2>Proposal Snapshot</h2>
+      <span data-investigation-proposals-count>{{ investigation.proposals|length }} pending</span>
+    </div>
+    <div class="detail-list compact-detail-list investigation-stats-list">
+      <div><dt>Findings</dt><dd data-investigation-findings-count>{{ investigation.findings|length }} items</dd></div>
+      <div><dt>Host changes</dt><dd>{{ investigation.proposed_host_changes_json|length if investigation.proposed_host_changes_json else 0 }}</dd></div>
+      <div><dt>Project changes</dt><dd>{{ investigation.proposed_project_changes_json|length if investigation.proposed_project_changes_json else 0 }}</dd></div>
+    </div>
+    <p class="subtle">Review the full proposal table below before you confirm or apply.</p>
+  </article>
+</section>
+
+<section class="investigation-lower-stack">
+  <article class="card">
+    <div class="card-header">
+      <h2>Current Findings</h2>
+      <span data-investigation-findings-count-secondary>{{ investigation.findings|length }} items</span>
+    </div>
+    <div class="investigation-findings" data-investigation-findings>
+      {% if investigation.findings %}
+        {% for finding in investigation.findings %}
+          <article class="notes-block compact investigation-finding-card">
+            <div class="card-header">
+              <h4>{{ finding.title }}</h4>
+              <span>{{ "%.2f"|format(finding.confidence or 0) }} · {{ finding.source_type }}</span>
+            </div>
+            <p>{{ finding.summary }}</p>
+            {% if finding.details_json %}
+              <details class="investigation-detail-toggle">
+                <summary>Raw finding details</summary>
+                <pre class="code-block compact-block">{{ finding.details_json|json_pretty }}</pre>
+              </details>
+            {% endif %}
+          </article>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state compact">
+          <h3>No findings yet</h3>
+          <p>The assistant will populate findings after the first collection pass.</p>
+        </div>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="card">
+    <div class="card-header">
+      <h2>Proposal Review</h2>
+      <span>Confirm before apply</span>
+    </div>
+    <div data-investigation-proposals>
+      {% if investigation.proposals %}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Target</th>
+              <th>Field</th>
+              <th>Old value</th>
+              <th>New value</th>
+              <th>Rationale</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for proposal in investigation.proposals %}
+            <tr>
+              <td>{{ proposal.proposal_type }}</td>
+              <td>{{ proposal.target_kind }}{% if proposal.target_id %} #{{ proposal.target_id }}{% endif %}</td>
+              <td>{{ proposal.field_name }}</td>
+              <td><pre class="compact-inline">{{ proposal.old_value_json|json_pretty if proposal.old_value_json is not none else "—" }}</pre></td>
+              <td><pre class="compact-inline">{{ proposal.new_value_json|json_pretty if proposal.new_value_json is not none else "—" }}</pre></td>
+              <td>{{ proposal.rationale or "—" }}</td>
+              <td>{{ "%.2f"|format(proposal.confidence or 0) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="empty-state compact">
+          <h3>No proposals yet</h3>
+          <p>The assistant will add proposed host and project changes after it refreshes the draft.</p>
+        </div>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}
